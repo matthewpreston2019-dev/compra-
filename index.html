@@ -1,1571 +1,232 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Obrador Túria — clothing shop in Russafa, València. Hoodies, trousers and everyday pieces. Order online, pay in person.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23234A9C'/%3E%3Cpath d='M32 10 54 32 32 54 10 32Z' fill='none' stroke='%23F7F8FB' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23CF6A2B'/%3E%3C/svg%3E">
-<title>Obrador Túria</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
-<style>
-:root{
-  --bg:#F3F4F1; --surface:#FFFFFF; --surface-2:#E9EBE6; --tile:#E6E8E3;
-  --ink:#131920; --ink-2:#3E4752; --muted:#667080; --line:#D8DCD5; --line-2:#BFC5BC;
-  --accent:#234A9C; --accent-soft:#E2E8F5; --orange:#B8591D; --orange-soft:#F8E7DA;
-  --on-ink:#F3F4F1;
-  --ok:#2A6E4A; --ok-soft:#E0EFE6; --warn:#835400; --warn-soft:#F5EAD2; --danger:#B1261D; --danger-soft:#F8E3E1;
-  --azu-ground:#F7F8FB; --azu-ink:#234A9C; --azu-dot:#CF6A2B;
-  --bar-bg:#131920; --bar-ink:#F3F4F1;
-  --scrim:rgba(12,16,22,.42);
-  --shadow:0 24px 60px rgba(15,20,28,.18);
-  --r:3px;
-  --ease:cubic-bezier(.16,.8,.24,1);
-  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
-  --body:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --bg:#0F1318; --surface:#161C23; --surface-2:#1D242C; --tile:#D3D6D0;
-    --ink:#E7EAED; --ink-2:#BFC6CE; --muted:#8D96A2; --line:#28313B; --line-2:#3A444F;
-    --accent:#94AEF0; --accent-soft:#1C2842; --orange:#EE9A63; --orange-soft:#2F2016;
-    --on-ink:#0F1318;
-    --ok:#74C898; --ok-soft:#16291F; --warn:#E3B45C; --warn-soft:#2B2313; --danger:#F08A80; --danger-soft:#33191A;
-    --azu-ground:#132039; --azu-ink:#86A2EE; --azu-dot:#EE9A63;
-    --bar-bg:#1D242C; --bar-ink:#E7EAED;
-    --scrim:rgba(0,0,0,.6); --shadow:0 24px 60px rgba(0,0,0,.55);
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#0F1318; --surface:#161C23; --surface-2:#1D242C; --tile:#D3D6D0;
-  --ink:#E7EAED; --ink-2:#BFC6CE; --muted:#8D96A2; --line:#28313B; --line-2:#3A444F;
-  --accent:#94AEF0; --accent-soft:#1C2842; --orange:#EE9A63; --orange-soft:#2F2016;
-  --on-ink:#0F1318;
-  --ok:#74C898; --ok-soft:#16291F; --warn:#E3B45C; --warn-soft:#2B2313; --danger:#F08A80; --danger-soft:#33191A;
-  --azu-ground:#132039; --azu-ink:#86A2EE; --azu-dot:#EE9A63;
-  --bar-bg:#1D242C; --bar-ink:#E7EAED;
-  --scrim:rgba(0,0,0,.6); --shadow:0 24px 60px rgba(0,0,0,.55);
-}
+// Obrador Túria — shop website + order emails
+// Serves the shop page and emails every completed order form to the shop owner.
+// Email goes through Resend's HTTPS API (Render's free plan blocks normal email/SMTP ports).
 
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4{margin:0;text-wrap:balance}
-p{margin:0}
-button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer}
-a{color:inherit}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.wrap{max-width:1200px;margin-inline:auto;padding-inline:clamp(16px,4vw,40px)}
-.mono{font-family:var(--mono)}
-.muted{color:var(--muted)}
-.eyebrow{font:500 12px/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
-.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+const path = require("path");
+const fs = require("fs");
+const express = require("express");
 
-/* ---------- motion ---------- */
-@keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-.reveal{opacity:0;transform:translateY(28px);transition:opacity .9s var(--ease),transform .9s var(--ease);transition-delay:var(--rd,0s)}
-.reveal.in{opacity:1;transform:none}
-.hero-copy > *{animation:rise .95s var(--ease) both}
-.hero-copy > :nth-child(1){animation-delay:.05s}
-.hero-copy > :nth-child(2){animation-delay:.15s}
-.hero-copy > :nth-child(3){animation-delay:.28s}
-.hero-copy > :nth-child(4){animation-delay:.4s}
-.hero-copy > :nth-child(5){animation-delay:.52s}
-.hero-art{animation:fade 1.2s .2s var(--ease) both}
-.hero-art .shop-card{animation:rise .9s .7s var(--ease) both}
-.view.entering{animation:rise .6s var(--ease) both}
-@media (prefers-reduced-motion:reduce){
-  *{transition:none!important;animation:none!important}
-  .reveal{opacity:1;transform:none}
-}
+// The shop page can sit in /public/index.html or at the top of the repo as /index.html.
+const PUBLIC_DIR = path.join(__dirname, "public");
+const INDEX = [path.join(PUBLIC_DIR, "index.html"), path.join(__dirname, "index.html")].find(f => fs.existsSync(f));
 
-/* ---------- buttons ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 20px;border-radius:var(--r);border:1px solid transparent;font-weight:600;font-size:14px;letter-spacing:.01em;text-decoration:none;transition:background .15s,border-color .15s,color .15s}
-.btn.primary{background:var(--ink);color:var(--on-ink)}
-.btn.primary:hover{background:var(--accent);color:var(--on-ink)}
-.btn.primary:disabled{opacity:.55;cursor:not-allowed;background:var(--ink)}
-.btn.line{background:transparent;border-color:var(--line-2);color:var(--ink)}
-.btn.line:hover{border-color:var(--ink)}
-.btn.ghost{background:transparent;color:var(--ink);padding-inline:4px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--line-2)}
-.btn.ghost:hover{text-decoration-color:var(--ink)}
-.btn.lg{min-height:52px;font-size:15px;padding:0 28px}
-.btn.block{width:100%}
-.icon-btn{display:inline-grid;place-items:center;width:40px;height:40px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
-.icon-btn:hover{border-color:var(--ink)}
-.back{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:0;color:var(--ink-2);font-size:14px;font-weight:500}
-.back:hover{color:var(--ink)}
+const PORT = process.env.PORT || 3000;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const ORDER_EMAIL = process.env.ORDER_EMAIL || "";
+const FROM_EMAIL = process.env.FROM_EMAIL || "Obrador Túria <onboarding@resend.dev>";
+const RESEND_URL = process.env.RESEND_API_URL || "https://api.resend.com/emails";
 
-/* ---------- announcement + header ---------- */
-.announce{background:var(--bar-bg);color:var(--bar-ink);font:500 12px/1.4 var(--mono);letter-spacing:.04em}
-.announce .wrap{display:flex;flex-wrap:wrap;gap:6px 22px;justify-content:center;padding-block:9px;text-align:center}
-.announce span{white-space:nowrap}
-.announce b{color:var(--azu-dot);font-weight:500}
-.site-head{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(1.2) blur(10px);-webkit-backdrop-filter:saturate(1.2) blur(10px);border-bottom:1px solid var(--line)}
-.head-row{display:flex;align-items:center;gap:20px;min-height:68px}
-.brand{display:flex;flex-direction:column;gap:1px;background:none;border:0;padding:0;text-align:left;color:var(--ink)}
-.wordmark{font-family:var(--display);font-stretch:125%;font-weight:750;font-size:19px;letter-spacing:.06em;text-transform:uppercase;line-height:1}
-.brand small{font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.nav{display:flex;gap:4px;margin-left:auto;align-items:center;overflow-x:auto;scrollbar-width:none}
-.nav::-webkit-scrollbar{display:none}
-.nav button{background:none;border:0;padding:8px 12px;border-radius:var(--r);font-size:14px;font-weight:500;color:var(--ink-2);white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
-.nav button:hover{color:var(--ink);background:var(--surface-2)}
-.nav button[aria-current="page"]{color:var(--ink);background:var(--surface-2)}
-.badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--on-ink);font:600 11px/1 var(--mono)}
-.head-tools{display:flex;gap:8px;align-items:center}
-.lang{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden;background:var(--surface)}
-.lang button{border:0;background:none;min-width:40px;min-height:38px;padding:0 10px;font:500 12px/1 var(--mono);letter-spacing:.06em;color:var(--muted)}
-.lang button:hover{color:var(--ink)}
-.lang button[aria-pressed="true"]{background:var(--ink);color:var(--on-ink)}
-.bag-btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);font-weight:600;font-size:14px}
-.bag-btn:hover{border-color:var(--ink)}
-.bag-btn .count{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
-@media (max-width:820px){
-  .head-row{flex-wrap:wrap;gap:0 12px;padding-block:10px 0;min-height:0}
-  .head-tools{margin-left:auto}
-  .nav{order:3;width:100%;margin:6px 0 0 -12px;padding-bottom:6px}
-  .wordmark{font-size:16px}
-}
-
-/* ---------- hero ---------- */
-.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(24px,5vw,64px);align-items:stretch;padding-block:clamp(32px,6vw,72px) clamp(40px,6vw,72px)}
-.hero-copy{display:flex;flex-direction:column;justify-content:center;gap:22px}
-.hero h1{font-family:var(--display);font-stretch:112%;font-weight:720;font-size:clamp(38px,6.2vw,72px);line-height:.98;letter-spacing:-.015em}
-.hero h1 em{font-style:normal;color:var(--accent)}
-.lede{font-size:17px;line-height:1.6;color:var(--ink-2);max-width:56ch}
-.hero-actions{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
-.facts{list-style:none;margin:8px 0 0;padding:18px 0 0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.facts li{display:flex;flex-direction:column;gap:2px}
-.facts strong{font-size:14px;font-weight:600}
-.facts span{font-size:13px;color:var(--muted)}
-.hero-art{position:relative;min-height:440px;border-radius:var(--r);overflow:hidden;background:var(--azu-ground);border:1px solid var(--line)}
-.hero-art svg.azulejo{position:absolute;inset:0;width:100%;height:100%;display:block}
-.azu-g{fill:var(--azu-ground)} .azu-i{fill:var(--azu-ink)} .azu-o{fill:var(--azu-dot)}
-.azu-s{stroke:var(--azu-ink);fill:none}
-.shop-card{position:absolute;left:clamp(14px,3vw,28px);bottom:clamp(14px,3vw,28px);right:clamp(14px,3vw,28px);max-width:340px;background:var(--surface);color:var(--ink);border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);display:grid;gap:12px}
-.shop-card .eyebrow{color:var(--muted)}
-.shop-card h2{font-family:var(--display);font-stretch:125%;font-weight:720;font-size:18px;letter-spacing:.05em;text-transform:uppercase}
-.shop-card address{font-style:normal;line-height:1.5;color:var(--ink-2)}
-.shop-card .coords{font:500 12px/1 var(--mono);color:var(--muted);display:flex;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
-.hours{display:flex;gap:8px;align-items:baseline}
-.open-dot{flex:none;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);transform:translateY(-1px)}
-@media (max-width:860px){
-  .hero{grid-template-columns:1fr}
-  .hero-art{min-height:300px}
-  .facts{grid-template-columns:1fr 1fr}
-}
-
-/* ---------- how it works ---------- */
-.how{border-block:1px solid var(--line);background:var(--surface)}
-.how .wrap{display:grid;grid-template-columns:260px 1fr;gap:32px;padding-block:44px}
-.how h2,.section-head h2,.visit h2{font-family:var(--display);font-stretch:112%;font-weight:700;font-size:clamp(24px,3vw,32px);line-height:1.08;letter-spacing:-.01em}
-.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
-.steps li{display:grid;gap:8px;align-content:start}
-.steps .n{font:500 12px/1 var(--mono);color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
-.steps strong{font-size:16px;font-weight:600}
-.steps p{color:var(--ink-2);font-size:14.5px}
-@media (max-width:860px){.how .wrap{grid-template-columns:1fr;gap:20px}.steps{grid-template-columns:1fr;gap:20px}}
-
-/* ---------- collection ---------- */
-.collection{padding-block:clamp(48px,7vw,80px)}
-.section-head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:16px 32px;margin-bottom:28px}
-.section-head p{color:var(--muted);margin-top:8px}
-.filters{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}
-.filters::-webkit-scrollbar{display:none}
-.chip{border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:500;white-space:nowrap;color:var(--ink-2)}
-.chip:hover{border-color:var(--ink);color:var(--ink)}
-.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
-.chip .c{font-family:var(--mono);font-size:12px;opacity:.7;margin-left:4px}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:40px 22px}
-@media (max-width:1060px){.grid{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:800px){.grid{grid-template-columns:repeat(2,1fr);gap:32px 14px}}
-.product{display:flex;flex-direction:column;gap:10px;min-width:0}
-.tile{position:relative;aspect-ratio:4/5;max-width:100%;background:var(--tile);border-radius:var(--r);display:grid;place-items:center;overflow:hidden}
-.tile svg{width:86%;height:auto;display:block;transition:transform .6s var(--ease)}
-.product:hover .tile svg{transform:translateY(-4px) scale(1.02)}
-.tile-tag{position:absolute;top:10px;left:10px;background:#fff;color:#131920;font:500 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:6px 8px;border-radius:2px}
-.tile-tag:empty{display:none}
-.p-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:4px}
-.p-head h3{font-size:15px;font-weight:600;line-height:1.3}
-.price{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.p-desc{font-size:13.5px;color:var(--muted);line-height:1.45}
-.p-color{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.swatches{display:flex;gap:6px}
-.sw{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.18);background:var(--sw);padding:0;box-shadow:inset 0 0 0 2px var(--bg)}
-.sw[aria-pressed="true"]{outline:1.5px solid var(--ink);outline-offset:2px}
-.color-name{font-size:13px;color:var(--ink-2)}
-.sizes{display:flex;flex-wrap:wrap;gap:5px}
-.size{min-width:38px;height:32px;padding:0 8px;border:1px solid var(--line-2);border-radius:2px;background:transparent;font:500 12.5px/1 var(--mono);color:var(--ink-2)}
-.size:hover{border-color:var(--ink);color:var(--ink)}
-.size[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
-.size-hint{font-size:12.5px;color:var(--danger);margin-top:-4px}
-.sizes.shake{animation:shake .32s}
-@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-.product .add{margin-top:auto}
-@media (max-width:480px){
-  .size{min-width:34px;height:30px;padding:0 6px;font-size:12px}
-  .p-desc{display:none}
-  .product .add{padding:0 10px}
-}
-
-/* ---------- visit ---------- */
-.visit{background:var(--surface);border-top:1px solid var(--line)}
-.visit .wrap{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,5vw,72px);padding-block:clamp(48px,7vw,80px)}
-.visit-intro{display:grid;gap:18px;align-content:start}
-.visit address{font-style:normal;font-size:17px;line-height:1.5}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:10px 28px;margin:0;font-size:14.5px}
-.kv dt{color:var(--muted)}
-.kv dd{margin:0;font-variant-numeric:tabular-nums}
-.zones{width:100%;border-collapse:collapse;font-size:14.5px}
-.zones th{text-align:left;font:500 11.5px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:0 12px 10px 0;border-bottom:1px solid var(--line-2)}
-.zones td{padding:13px 12px 13px 0;border-bottom:1px solid var(--line);vertical-align:top}
-.zones td:last-child,.zones th:last-child{padding-right:0;text-align:right;white-space:nowrap}
-.visit-side{display:grid;gap:28px;align-content:start}
-.visit-side h3{font-size:15px;font-weight:600;margin-bottom:12px}
-.paylist{display:flex;flex-wrap:wrap;gap:8px}
-.paylist span{border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;font-size:13.5px}
-@media (max-width:860px){.visit .wrap{grid-template-columns:1fr}}
-
-footer.site-foot{border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-footer.site-foot .wrap{display:flex;flex-wrap:wrap;gap:10px 28px;justify-content:space-between;padding-block:28px}
-
-/* ---------- drawer ---------- */
-.scrim{position:fixed;inset:0;background:var(--scrim);z-index:40;opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s}
-.scrim.open{opacity:1;visibility:visible}
-.drawer{position:fixed;top:0;right:0;bottom:0;z-index:41;width:min(440px,100%);background:var(--surface);display:flex;flex-direction:column;box-shadow:var(--shadow);transform:translateX(100%);visibility:hidden;transition:transform .35s var(--ease),visibility .35s;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-.drawer.open{transform:none;visibility:visible}
-.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line)}
-.drawer-head h2{font-family:var(--display);font-stretch:112%;font-size:20px;font-weight:700}
-.bag-items{flex:1;overflow-y:auto;padding:6px 22px}
-.bag-line{display:grid;grid-template-columns:64px 1fr auto;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);align-items:start}
-.mini{width:64px;aspect-ratio:4/5;background:var(--tile);border-radius:2px;display:grid;place-items:center}
-.mini svg{width:92%}
-.bl-name{font-weight:600;font-size:14px;line-height:1.3}
-.bl-meta{font-size:13px;color:var(--muted);margin-top:2px}
-.qty{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:2px;margin-top:10px}
-.qty button{width:30px;height:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--ink)}
-.qty span{min-width:26px;text-align:center;font:500 13px/1 var(--mono)}
-.bl-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-.remove{background:none;border:0;padding:0;font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
-.remove:hover{color:var(--danger)}
-.drawer-foot{padding:18px 22px 22px;border-top:1px solid var(--line);display:grid;gap:12px}
-.row{display:flex;justify-content:space-between;gap:16px;align-items:baseline}
-.row .v{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.small{font-size:13px;color:var(--muted);line-height:1.45}
-.empty{padding:48px 8px;text-align:center;display:grid;gap:14px;justify-items:center;color:var(--muted)}
-.empty strong{color:var(--ink);font-size:16px}
-
-/* ---------- views ---------- */
-.view-top{padding-block:28px 8px}
-.view-head{display:grid;gap:10px;margin:22px 0 30px;max-width:720px}
-.h-view{font-family:var(--display);font-stretch:112%;font-weight:720;font-size:clamp(30px,4.4vw,46px);line-height:1.02;letter-spacing:-.012em}
-
-/* ---------- checkout ---------- */
-.checkout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:clamp(24px,4vw,56px);align-items:start;padding-bottom:80px}
-@media (max-width:920px){.checkout{grid-template-columns:1fr}.summary{order:-1}}
-form fieldset{border:0;margin:0;padding:28px 0;border-top:1px solid var(--line);display:block;min-width:0}
-form fieldset:first-child{border-top:0;padding-top:0}
-form fieldset > *:not(legend) + *{margin-top:18px}
-legend + *{clear:both}
-legend{float:left;width:100%;padding:0;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-family:var(--display);font-stretch:112%;font-weight:680;font-size:20px}
-.step-n{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1px solid var(--ink);font:500 12.5px/1 var(--mono);flex:none}
-.fields{display:grid;grid-template-columns:1fr 1fr;gap:16px 16px}
-.fields .full{grid-column:1/-1}
-@media (max-width:560px){.fields{grid-template-columns:1fr}}
-.field{display:grid;gap:6px;min-width:0;align-content:start}
-.field label{font-size:13.5px;font-weight:600}
-.field label .opt{font-weight:400;color:var(--muted)}
-.field input,.field textarea{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);font-size:15px}
-.field textarea{min-height:84px;resize:vertical;line-height:1.45}
-.field input:focus,.field textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
-.field input[readonly]{background:var(--surface-2);color:var(--ink-2)}
-.field .hint{font-size:12.5px;color:var(--muted)}
-.field.bad input,.field.bad textarea{border-color:var(--danger)}
-.err{font-size:12.5px;color:var(--danger);font-weight:500}
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media (max-width:560px){.choices{grid-template-columns:1fr}}
-.choice{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:16px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);cursor:pointer}
-.choice:hover{border-color:var(--ink-2)}
-.choice:has(input:checked){border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.choice input{accent-color:var(--accent);width:18px;height:18px;margin:2px 0 0}
-.choice strong{display:block;font-size:14.5px}
-.choice small{display:block;font-size:13px;color:var(--muted);margin-top:3px;line-height:1.4}
-.pay-card{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;padding:18px 20px;border:1px solid var(--ink);box-shadow:inset 0 0 0 1px var(--ink);border-radius:var(--r);background:var(--surface)}
-.pay-card .ic{width:40px;height:40px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
-.pay-card strong{display:block;font-size:16px;margin-bottom:4px}
-.pay-card p{font-size:14px;color:var(--ink-2);line-height:1.5;margin-bottom:12px}
-.check{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;cursor:pointer}
-.check input{accent-color:var(--accent);width:18px;height:18px;margin:2px 0 0;flex:none}
-.notice{border-radius:var(--r);padding:14px 16px;font-size:14px;line-height:1.5}
-.notice.warn{background:var(--warn-soft);color:var(--ink)}
-.notice.bad{background:var(--danger-soft);color:var(--ink)}
-.notice strong{font-weight:600}
-.submit-row{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center}
-.summary{position:sticky;top:calc(env(safe-area-inset-top,0px) + 92px);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px;display:grid;gap:14px}
-.summary h2{font-size:15px;font-weight:600}
-.sum-lines{display:grid;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.sum-line{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;font-size:13.5px}
-.sum-line .mini{width:44px}
-.sum-line .n{font-weight:600;line-height:1.3}
-.sum-line .m{color:var(--muted);font-size:12.5px}
-.sum-total{padding-top:12px;border-top:1px solid var(--line);font-weight:600;font-size:16px}
-.pay-note{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink-2);background:var(--surface-2);border-radius:var(--r);padding:12px}
-.pay-note svg{flex:none;margin-top:1px}
-
-/* ---------- order sheet ---------- */
-.narrow{max-width:900px}
-.done-head{display:grid;gap:12px;margin:28px 0 28px}
-.done-actions{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:6px}
-.tick{width:44px;height:44px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center}
-.sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:clamp(20px,4vw,40px);display:grid;gap:26px;margin-bottom:64px}
-.sheet-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;padding-bottom:22px;border-bottom:2px solid var(--ink)}
-.sheet-top .wordmark{font-size:17px;margin-bottom:10px}
-.sheet-top p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
-.sheet-kind{font:500 11.5px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-.sheet-meta dl{display:grid;grid-template-columns:auto auto;gap:6px 18px;margin:0;font-size:13.5px;align-items:center}
-.sheet-meta dt{color:var(--muted)}
-.sheet-meta dd{margin:0}
-.sheet-parties{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-@media (max-width:620px){.sheet-parties{grid-template-columns:1fr}}
-.party{border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;display:grid;gap:6px;align-content:start}
-.party.deliver{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.party h4,.sheet-pay h4,.sheet-notes span{font:500 11px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.party .who{font-size:17px;font-weight:600}
-.party p{font-size:14.5px;line-height:1.5}
-.sheet-notes{display:grid;gap:6px;font-size:14.5px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r)}
-.table-scroll{overflow-x:auto}
-.sheet-items{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
-.sheet-items th{text-align:left;font:500 11px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 12px 10px 0;border-bottom:1px solid var(--line-2)}
-.sheet-items td{padding:12px 12px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
-.sheet-items .num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;padding-right:0}
-.sheet-items th.num{padding-right:0}
-.sheet-items tfoot td{border-bottom:0;padding-block:6px;color:var(--ink-2)}
-.sheet-items tfoot td:first-child{text-align:right}
-.sheet-items tfoot tr:first-child td{padding-top:14px}
-.sheet-items tfoot .total td{font-weight:600;color:var(--ink);font-size:15.5px;padding-top:12px;border-top:1px solid var(--line-2)}
-.sheet-pay{display:grid;gap:6px;font-size:14.5px;padding:16px 18px;border:1px dashed var(--line-2);border-radius:var(--r)}
-.sheet-sign{display:grid;grid-template-columns:1.4fr .8fr 1.2fr;gap:20px;padding-top:12px}
-.sheet-sign div{display:grid;gap:8px;font:500 11px/1.2 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.sheet-sign span{display:block;height:34px;border-bottom:1px solid var(--ink-2)}
-@media (max-width:620px){.sheet-sign{grid-template-columns:1fr 1fr}.sheet-sign div:first-child{grid-column:1/-1}}
-
-/* ---------- status pills ---------- */
-.pill{display:inline-flex;align-items:center;gap:6px;font:500 11.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:6px 9px;border-radius:999px;white-space:nowrap;width:max-content}
-.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
-.st-new{background:var(--accent-soft);color:var(--accent)}
-.st-packed{background:var(--warn-soft);color:var(--warn)}
-.st-out{background:var(--orange-soft);color:var(--orange)}
-.st-delivered{background:var(--ok-soft);color:var(--ok)}
-.st-cancelled{background:var(--surface-2);color:var(--muted)}
-
-/* ---------- my orders + admin lists ---------- */
-.list{display:grid;gap:12px;padding-bottom:80px}
-.o-row{display:grid;grid-template-columns:170px minmax(0,1.4fr) minmax(0,1.2fr) 130px 200px;gap:18px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
-.o-row.mine{grid-template-columns:170px minmax(0,1.4fr) minmax(0,1fr) 130px auto}
-.o-row .lab{display:block;font:500 10.5px/1.2 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.o-id{display:grid;gap:4px}
-.o-id .mono{font-size:14px;font-weight:500}
-.o-id .d{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.o-to strong{display:block;font-size:15px}
-.o-to p,.o-items p{font-size:13.5px;color:var(--ink-2);line-height:1.45}
-.o-to .by{color:var(--muted);font-size:12.5px;margin-top:6px}
-.o-pay strong{display:block;font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
-.o-pay span{font-size:12.5px;color:var(--muted)}
-.o-act{display:grid;gap:8px;justify-items:stretch}
-.o-act select{min-height:38px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);padding:0 10px;font-size:13.5px}
-.o-act .btn{min-height:38px;font-size:13px;padding:0 12px}
-@media (max-width:1000px){
-  .o-row,.o-row.mine{grid-template-columns:1fr 1fr}
-  .o-to,.o-items{grid-column:1/-1}
-  .o-id{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
-}
-.toolbar{display:flex;flex-wrap:wrap;gap:12px 16px;justify-content:space-between;align-items:center;margin-bottom:16px}
-.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}
-.tabs::-webkit-scrollbar{display:none}
-.search{min-height:40px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--surface);padding:0 12px;width:min(300px,100%);font-size:14px}
-.collect{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:baseline;padding:16px 20px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:20px}
-.collect strong{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
-.collect span{color:var(--muted);font-size:14px}
-.list-empty{padding:56px 24px;text-align:center;border:1px dashed var(--line-2);border-radius:var(--r);color:var(--muted);display:grid;gap:8px;justify-items:center}
-.list-empty strong{color:var(--ink);font-size:16px}
-
-/* ---------- modal + toast ---------- */
-.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:start center;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 24px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
-.modal-scrim{position:fixed;inset:0;background:var(--scrim);animation:fade .25s both}
-.modal-body{position:relative;width:min(900px,100%);animation:rise .45s var(--ease) both}
-.modal-body .sheet{margin:0;box-shadow:var(--shadow)}
-.modal-x{position:absolute;top:12px;right:12px;z-index:2}
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--on-ink);padding:12px 18px;border-radius:var(--r);font-size:14px;box-shadow:var(--shadow);max-width:calc(100% - 32px);animation:fade .2s both}
-</style>
-<style>
-html{color-scheme:light dark}
-[hidden]{display:none!important}
-img{max-width:100%}
-</style>
-</head>
-<body>
-<div class="announce" role="note">
-  <div class="wrap">
-    <span data-i18n-html="ann1">Located in <b>Russafa, València</b></span>
-    <span data-i18n="ann2">Payment in person only</span>
-    <span data-i18n="ann3">Free delivery in València province</span>
-  </div>
-</div>
-
-<header class="site-head">
-  <div class="wrap head-row">
-    <button class="brand" type="button" data-go="shop" data-anchor="top" aria-label="Obrador Túria">
-      <span class="wordmark">Obrador Túria</span>
-      <small data-i18n="brandSub">València · Spain</small>
-    </button>
-    <nav class="nav" data-i18n-aria="navAria" aria-label="Main">
-      <button type="button" data-go="shop" data-anchor="collection" data-i18n="navShop">Shop</button>
-      <button type="button" data-go="shop" data-anchor="how" data-i18n="navHow">How to order</button>
-      <button type="button" data-go="shop" data-anchor="visit" data-i18n="navVisit">Visit us</button>
-      <button type="button" data-go="mine" id="navMine" hidden><span data-i18n="navMine">My orders</span></button>
-      <button type="button" data-go="admin" id="navAdmin" hidden><span data-i18n="navAdmin">Orders</span> <span class="badge" id="adminBadge" hidden>0</span></button>
-    </nav>
-    <div class="head-tools">
-      <div class="lang" role="group" data-i18n-aria="langAria" aria-label="Language">
-        <button type="button" data-lang="en" aria-pressed="true" title="English">EN</button>
-        <button type="button" data-lang="es" aria-pressed="false" title="Español">ES</button>
-      </div>
-      <button type="button" class="bag-btn" id="bagBtn" aria-haspopup="dialog" aria-controls="bag" aria-expanded="false">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 12.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
-        <span data-i18n="bag">Bag</span> <span class="count" id="bagCount">0</span>
-      </button>
-    </div>
-  </div>
-</header>
-
-<main id="top">
-<!-- ===================== SHOP ===================== -->
-<div id="view-shop" class="view">
-  <section class="wrap hero">
-    <div class="hero-copy">
-      <p class="eyebrow" data-i18n="heroEyebrow">Clothing studio · Russafa, València</p>
-      <h1 data-i18n-html="heroH1">Made in <em>València</em>.<br>Paid for in person.</h1>
-      <p class="lede" data-i18n="heroLede">Heavyweight hoodies, trousers and everyday pieces from our shop in Russafa. Order with the form, tell us who it's going to and where — then pay in person when it arrives, or at the shop.</p>
-      <div class="hero-actions">
-        <button type="button" class="btn primary lg" data-go="shop" data-anchor="collection" data-i18n="heroCta">Shop the collection</button>
-        <button type="button" class="btn ghost" data-go="shop" data-anchor="visit" data-i18n="heroFind">Find the shop</button>
-      </div>
-      <ul class="facts">
-        <li><strong data-i18n="f1t">No online payment</strong><span data-i18n="f1s">Cash, card or Bizum in person</span></li>
-        <li><strong data-i18n="f2t">Free in València</strong><span data-i18n="f2s">Postcodes 46xxx, 24–48 h</span></li>
-        <li><strong data-i18n="f3t">Mainland Spain</strong><span data-i18n="f3s">5,90 € · 2–4 working days</span></li>
-      </ul>
-    </div>
-    <div class="hero-art">
-      <svg class="azulejo" preserveAspectRatio="xMidYMid slice" viewBox="0 0 512 560" aria-hidden="true">
-        <defs>
-          <pattern id="azu" width="64" height="64" patternUnits="userSpaceOnUse">
-            <rect class="azu-g" width="64" height="64"/>
-            <circle class="azu-i" cx="0" cy="0" r="15"/><circle class="azu-i" cx="64" cy="0" r="15"/><circle class="azu-i" cx="0" cy="64" r="15"/><circle class="azu-i" cx="64" cy="64" r="15"/>
-            <circle class="azu-g" cx="0" cy="0" r="10"/><circle class="azu-g" cx="64" cy="0" r="10"/><circle class="azu-g" cx="0" cy="64" r="10"/><circle class="azu-g" cx="64" cy="64" r="10"/>
-            <circle class="azu-i" cx="0" cy="0" r="4.5"/><circle class="azu-i" cx="64" cy="0" r="4.5"/><circle class="azu-i" cx="0" cy="64" r="4.5"/><circle class="azu-i" cx="64" cy="64" r="4.5"/>
-            <path class="azu-s" stroke-width="1.6" d="M32 7 L57 32 L32 57 L7 32 Z"/>
-            <g class="azu-i">
-              <path d="M32 13 C38 20 38 25 32 31 C26 25 26 20 32 13 Z"/>
-              <path d="M32 13 C38 20 38 25 32 31 C26 25 26 20 32 13 Z" transform="rotate(90 32 32)"/>
-              <path d="M32 13 C38 20 38 25 32 31 C26 25 26 20 32 13 Z" transform="rotate(180 32 32)"/>
-              <path d="M32 13 C38 20 38 25 32 31 C26 25 26 20 32 13 Z" transform="rotate(270 32 32)"/>
-            </g>
-            <circle class="azu-o" cx="32" cy="32" r="3.6"/>
-            <rect class="azu-s" x=".5" y=".5" width="63" height="63" stroke-width="1" stroke-opacity=".3"/>
-          </pattern>
-        </defs>
-        <rect width="512" height="560" fill="url(#azu)"/>
-      </svg>
-      <div class="shop-card">
-        <p class="eyebrow" data-i18n="shopCardEyebrow">The shop</p>
-        <h2>Obrador Túria</h2>
-        <address data-i18n-html="addrHtml">Carrer de Sueca, Russafa<br>46006 València, Spain</address>
-        <p class="small hours"><span class="open-dot" aria-hidden="true"></span><span data-i18n-html="hoursShort">Mon–Fri 10:00–14:00 · 17:00–20:30<br>Sat 10:30–14:30</span></p>
-        <p class="coords"><span>39.46° N · 0.37° W</span><span>ES-V</span></p>
-      </div>
-    </div>
-  </section>
-
-  <section class="how" id="how" aria-labelledby="how-title">
-    <div class="wrap">
-      <div class="how-intro">
-        <p class="eyebrow" data-i18n="howEyebrow">How to order</p>
-        <h2 id="how-title" style="margin-top:10px" data-i18n="howTitle">Three steps, no card online.</h2>
-      </div>
-      <ol class="steps">
-        <li><span class="n" data-i18n="s1n">Step 1</span><strong data-i18n="s1t">Choose your pieces</strong><p data-i18n="s1p">Pick a colour and size, and add them to your bag.</p></li>
-        <li><span class="n" data-i18n="s2n">Step 2</span><strong data-i18n="s2t">Fill in the order form</strong><p data-i18n="s2p">Your name, who the order is going to, and the full delivery address.</p></li>
-        <li><span class="n" data-i18n="s3n">Step 3</span><strong data-i18n="s3t">Pay in person</strong><p data-i18n="s3p">Cash, card or Bizum — to our courier when it arrives, or at the shop in Russafa.</p></li>
-      </ol>
-    </div>
-  </section>
-
-  <section class="wrap collection" id="collection" aria-labelledby="col-title">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow" data-i18n="colEyebrow">Autumn / Winter 2026</p>
-        <h2 id="col-title" style="margin-top:10px" data-i18n="colTitle">The collection</h2>
-        <p id="colCount"></p>
-      </div>
-      <div class="filters" role="group" data-i18n-aria="filtersAria" aria-label="Filter by category" id="filters"></div>
-    </div>
-    <div class="grid" id="grid"></div>
-  </section>
-
-  <section class="visit" id="visit" aria-labelledby="visit-title">
-    <div class="wrap">
-      <div class="visit-intro">
-        <p class="eyebrow" data-i18n="visitEyebrow">Visit us</p>
-        <h2 id="visit-title" data-i18n="visitTitle">Our shop is in Russafa, València.</h2>
-        <address data-i18n-html="visitAddr">Obrador Túria<br>Carrer de Sueca, Russafa<br>46006 València, Spain</address>
-        <dl class="kv">
-          <dt data-i18n="monFri">Mon – Fri</dt><dd>10:00–14:00 · 17:00–20:30</dd>
-          <dt data-i18n="sat">Saturday</dt><dd>10:30–14:30</dd>
-          <dt data-i18n="sun">Sunday</dt><dd data-i18n="closed">Closed</dd>
-        </dl>
-        <p class="small" data-i18n="visitNote">Try everything on in the shop, or order with the form and pay in person.</p>
-      </div>
-      <div class="visit-side">
-        <div>
-          <h3 data-i18n="payTitle">Payment — in person only</h3>
-          <div class="paylist"><span data-i18n="cash">Cash</span><span data-i18n="card">Card</span><span>Bizum</span></div>
-          <p class="small" style="margin-top:10px" data-i18n="payNote">We never take payment online and never ask for card details on this site.</p>
-        </div>
-        <div>
-          <h3 data-i18n="deliveryTitle">Delivery</h3>
-          <div class="table-scroll">
-            <table class="zones">
-              <thead><tr><th data-i18n="thWhere">Where</th><th data-i18n="thTime">Time</th><th data-i18n="thCost">Cost</th></tr></thead>
-              <tbody>
-                <tr><td><span data-i18n="z1">València province</span><br><span class="small" data-i18n="z1s">Postcodes 46xxx</span></td><td>24–48 h</td><td data-i18n="free">Free</td></tr>
-                <tr><td data-i18n="z2">Rest of mainland Spain</td><td data-i18n="days">2–4 working days</td><td class="mono">5,90 €</td></tr>
-                <tr><td data-i18n="z3">Balearics, Canaries, Ceuta, Melilla</td><td>—</td><td data-i18n="notYet">Not yet</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
-
-<!-- ===================== CHECKOUT ===================== -->
-<div id="view-checkout" class="view" hidden>
-  <div class="wrap view-top">
-    <button type="button" class="back" data-go="shop" data-anchor="collection" data-i18n="backShop">← Back to shop</button>
-    <header class="view-head">
-      <p class="eyebrow" data-i18n="ofEyebrow">Order form</p>
-      <h1 class="h-view" data-i18n="ofTitle">Complete your order</h1>
-      <p class="lede" data-i18n="ofLede">Tell us who's ordering, who it's going to and the delivery address. Nothing is paid now — you pay in person.</p>
-    </header>
-    <div class="checkout">
-      <form id="orderForm" novalidate>
-        <fieldset>
-          <legend><span class="step-n">1</span><span data-i18n="lg1">Your details</span></legend>
-          <div class="fields">
-            <div class="field full"><label for="buyerName" data-i18n="fullName">Full name</label><input id="buyerName" name="buyerName" autocomplete="name" data-i18n-ph="phName"><p class="err" id="err-buyerName" hidden></p></div>
-            <div class="field"><label for="buyerPhone" data-i18n="phone">Phone</label><input id="buyerPhone" name="buyerPhone" type="tel" autocomplete="tel" placeholder="+34 600 123 456"><p class="err" id="err-buyerPhone" hidden></p></div>
-            <div class="field"><label for="buyerEmail"><span data-i18n="email">Email</span> <span class="opt" data-i18n="optional">(optional)</span></label><input id="buyerEmail" name="buyerEmail" type="email" autocomplete="email" data-i18n-ph="phEmail"><p class="err" id="err-buyerEmail" hidden></p></div>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend><span class="step-n">2</span><span data-i18n="lg2">Who is it going to?</span></legend>
-          <div class="choices">
-            <label class="choice"><input type="radio" name="recipientMode" id="rmMe" value="me" checked><span><strong data-i18n="toMe">To me</strong><small data-i18n="toMeS">I'll receive the parcel myself</small></span></label>
-            <label class="choice"><input type="radio" name="recipientMode" id="rmOther" value="other"><span><strong data-i18n="toOther">To someone else</strong><small data-i18n="toOtherS">A gift, or someone else receives it</small></span></label>
-          </div>
-          <div class="fields" id="recipientFields" hidden>
-            <div class="field"><label for="recName" data-i18n="recName">Recipient's full name</label><input id="recName" name="recName" autocomplete="off" data-i18n-ph="phRecName"><p class="err" id="err-recName" hidden></p></div>
-            <div class="field"><label for="recPhone"><span data-i18n="recPhone">Recipient's phone</span> <span class="opt" data-i18n="optional">(optional)</span></label><input id="recPhone" name="recPhone" type="tel" autocomplete="off" data-i18n-ph="phRecPhone"></div>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend><span class="step-n">3</span><span data-i18n="lg3">Delivery address</span></legend>
-          <div class="fields">
-            <div class="field full"><label for="street" data-i18n="street">Street and number</label><input id="street" name="street" autocomplete="address-line1" data-i18n-ph="phStreet"><p class="err" id="err-street" hidden></p></div>
-            <div class="field full"><label for="extra"><span data-i18n="extra">Floor, door, staircase</span> <span class="opt" data-i18n="optional">(optional)</span></label><input id="extra" name="extra" autocomplete="address-line2" data-i18n-ph="phExtra"></div>
-            <div class="field"><label for="postcode" data-i18n="postcode">Postcode</label><input id="postcode" name="postcode" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="46006"><p class="hint" id="pcHint"></p><p class="err" id="err-postcode" hidden></p></div>
-            <div class="field"><label for="city" data-i18n="city">Town / city</label><input id="city" name="city" autocomplete="address-level2" placeholder="València"><p class="err" id="err-city" hidden></p></div>
-            <div class="field"><label for="province" data-i18n="province">Province</label><input id="province" name="province" readonly tabindex="-1" data-i18n-ph="phProvince"></div>
-            <div class="field"><label for="country" data-i18n="country">Country</label><input id="country" name="country" readonly tabindex="-1"></div>
-            <div class="field full"><label for="notes"><span data-i18n="notes">Delivery notes</span> <span class="opt" data-i18n="optional">(optional)</span></label><textarea id="notes" name="notes" data-i18n-ph="phNotes"></textarea></div>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend><span class="step-n">4</span><span data-i18n="lg4">Payment</span></legend>
-          <div class="pay-card">
-            <span class="ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9.5v5M17 9.5v5"/></svg></span>
-            <div>
-              <strong data-i18n="payInPerson">Pay in person</strong>
-              <p data-i18n="payInPersonS">Cash, card or Bizum when your order is delivered, or at our shop in Russafa. Nothing is charged online.</p>
-              <div class="paylist"><span data-i18n="cash">Cash</span><span data-i18n="card">Card</span><span>Bizum</span></div>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend><span class="step-n">5</span><span data-i18n="lg5">Check and send</span></legend>
-          <label class="check" for="confirm"><input type="checkbox" id="confirm"> <span data-i18n="confirm">The names and delivery address above are correct.</span></label>
-          <p class="err" id="err-confirm" hidden></p>
-          <div class="notice bad" id="formError" hidden></div>
-          <div class="submit-row">
-            <button type="submit" class="btn primary lg" id="sendBtn" data-i18n="send">Send order</button>
-            <span class="small" data-i18n="sendNote">You'll get an order sheet straight away.</span>
-          </div>
-        </fieldset>
-      </form>
-
-      <aside class="summary" aria-labelledby="sum-title">
-        <h2 id="sum-title" data-i18n="sumTitle">Your order</h2>
-        <div class="sum-lines" id="sumLines"></div>
-        <div class="row"><span data-i18n="subtotal">Subtotal</span><span class="v" id="sumSub">0,00 €</span></div>
-        <div class="row"><span data-i18n="delivery">Delivery</span><span class="v" id="sumDel"></span></div>
-        <div class="row sum-total"><span data-i18n="toPay">To pay in person</span><span class="v" id="sumTotal">0,00 €</span></div>
-        <p class="pay-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span data-i18n="sumNote">No card details online. You pay in person when you receive your order.</span></p>
-      </aside>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== DONE ===================== -->
-<div id="view-done" class="view" hidden>
-  <div class="wrap narrow">
-    <div class="done-head">
-      <div class="tick" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-      <p class="eyebrow" data-i18n="doneEyebrow">Order sent</p>
-      <h1 class="h-view" id="doneTitle"></h1>
-      <p class="lede" id="doneLede"></p>
-      <div class="notice warn" id="doneWarn" hidden></div>
-      <div class="done-actions">
-        <button type="button" class="btn primary" data-go="shop" data-anchor="collection" data-i18n="backToShop">Back to the shop</button>
-        <button type="button" class="btn ghost" data-go="mine" id="doneMine" data-i18n="seeMine">See my orders</button>
-      </div>
-    </div>
-    <div id="doneSheet"></div>
-  </div>
-</div>
-
-<!-- ===================== MY ORDERS ===================== -->
-<div id="view-mine" class="view" hidden>
-  <div class="wrap view-top">
-    <button type="button" class="back" data-go="shop" data-anchor="collection" data-i18n="backShop">← Back to shop</button>
-    <header class="view-head">
-      <p class="eyebrow" data-i18n="mineEyebrow">Your account</p>
-      <h1 class="h-view" data-i18n="mineTitle">My orders</h1>
-      <p class="lede" data-i18n="mineLede">Orders you've sent. Only you and the shop can see them.</p>
-    </header>
-    <div class="list" id="mineList"></div>
-  </div>
-</div>
-
-<!-- ===================== ADMIN ===================== -->
-<div id="view-admin" class="view" hidden>
-  <div class="wrap view-top">
-    <button type="button" class="back" data-go="shop" data-anchor="top" data-i18n="backShop">← Back to shop</button>
-    <header class="view-head">
-      <p class="eyebrow" data-i18n="adminEyebrow">Shop staff only</p>
-      <h1 class="h-view" data-i18n="adminTitle">Orders</h1>
-      <p class="lede" data-i18n="adminLede">Every completed order form: who ordered, who it's going to, and where to deliver it. Customers only ever see their own.</p>
-    </header>
-    <div class="collect" id="collect"></div>
-    <div class="toolbar">
-      <div class="tabs" id="adminTabs" role="group" data-i18n-aria="statusAria" aria-label="Filter by status"></div>
-      <label class="visually-hidden" for="adminSearch" data-i18n="searchLabel">Search orders</label>
-      <input class="search" id="adminSearch" type="search" data-i18n-ph="searchPh">
-    </div>
-    <div class="list" id="adminList"></div>
-  </div>
-</div>
-</main>
-
-<footer class="site-foot">
-  <div class="wrap">
-    <span><span class="wordmark" style="font-size:13px">Obrador Túria</span> <span data-i18n="foot1">— clothing designed and sold in València, Spain.</span></span>
-    <span>Carrer de Sueca, Russafa · 46006 València</span>
-    <span data-i18n="foot3">Prices include IVA · Payment in person only</span>
-  </div>
-</footer>
-
-<!-- bag drawer -->
-<div class="scrim" id="scrim"></div>
-<aside class="drawer" id="bag" role="dialog" aria-modal="true" aria-labelledby="bag-title">
-  <div class="drawer-head">
-    <h2 id="bag-title" data-i18n="bagTitle">Your bag</h2>
-    <button type="button" class="icon-btn" id="bagClose" data-i18n-aria="closeBag" aria-label="Close bag"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  </div>
-  <div class="bag-items" id="bagItems"></div>
-  <div class="drawer-foot" id="bagFoot"></div>
-</aside>
-
-<!-- sheet modal -->
-<div class="modal" id="sheetModal" role="dialog" aria-modal="true" data-i18n-aria="sheetKind" aria-label="Order sheet" hidden>
-  <div class="modal-scrim" data-close></div>
-  <div class="modal-body">
-    <button type="button" class="icon-btn modal-x" data-close data-i18n-aria="closeSheet" aria-label="Close order sheet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div id="modalSheet"></div>
-  </div>
-</div>
-
-<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-
-<script>
-(function(){
-"use strict";
-
-/* ================= translations ================= */
-const I18N = {
-en: {
-  ann1:"Located in <b>Russafa, València</b>", ann2:"Payment in person only", ann3:"Free delivery in València province",
-  brandSub:"València · Spain", navAria:"Main", navShop:"Shop", navHow:"How to order", navVisit:"Visit us", navMine:"My orders", navAdmin:"Orders", langAria:"Language", bag:"Bag",
-  heroEyebrow:"Clothing studio · Russafa, València",
-  heroH1:"Made in <em>València</em>.<br>Paid for in person.",
-  heroLede:"Heavyweight hoodies, trousers and everyday pieces from our shop in Russafa. Order with the form, tell us who it's going to and where — then pay in person when it arrives, or at the shop.",
-  heroCta:"Shop the collection", heroFind:"Find the shop",
-  f1t:"No online payment", f1s:"Cash, card or Bizum in person", f2t:"Free in València", f2s:"Postcodes 46xxx, 24–48 h", f3t:"Mainland Spain", f3s:"5,90 € · 2–4 working days",
-  shopCardEyebrow:"The shop", addrHtml:"Carrer de Sueca, Russafa<br>46006 València, Spain", hoursShort:"Mon–Fri 10:00–14:00 · 17:00–20:30<br>Sat 10:30–14:30",
-  howEyebrow:"How to order", howTitle:"Three steps, no card online.",
-  s1n:"Step 1", s1t:"Choose your pieces", s1p:"Pick a colour and size, and add them to your bag.",
-  s2n:"Step 2", s2t:"Fill in the order form", s2p:"Your name, who the order is going to, and the full delivery address.",
-  s3n:"Step 3", s3t:"Pay in person", s3p:"Cash, card or Bizum — to our courier when it arrives, or at the shop in Russafa.",
-  colEyebrow:"Autumn / Winter 2026", colTitle:"The collection", colCount1:"1 piece · prices include IVA (21%)", colCountN:"{n} pieces · prices include IVA (21%)", filtersAria:"Filter by category",
-  cat_all:"All", cat_sweats:"Hoodies & sweats", cat_tops:"Tees & shirts", cat_trousers:"Trousers", cat_accessories:"Accessories",
-  newIn:"New in", colourAria:"Colour", sizeAria:"Size", sizeHint:"Choose a size first", addToBag:"Add to bag", oneSize:"One size",
-  visitEyebrow:"Visit us", visitTitle:"Our shop is in Russafa, València.", visitAddr:"Obrador Túria<br>Carrer de Sueca, Russafa<br>46006 València, Spain",
-  monFri:"Mon – Fri", sat:"Saturday", sun:"Sunday", closed:"Closed", visitNote:"Try everything on in the shop, or order with the form and pay in person.",
-  payTitle:"Payment — in person only", cash:"Cash", card:"Card", payNote:"We never take payment online and never ask for card details on this site.",
-  deliveryTitle:"Delivery", thWhere:"Where", thTime:"Time", thCost:"Cost", z1:"València province", z1s:"Postcodes 46xxx", free:"Free", z2:"Rest of mainland Spain", days:"2–4 working days", z3:"Balearics, Canaries, Ceuta, Melilla", notYet:"Not yet",
-  foot1:"— clothing designed and sold in València, Spain.", foot3:"Prices include IVA · Payment in person only",
-  backShop:"← Back to shop", ofEyebrow:"Order form", ofTitle:"Complete your order", ofLede:"Tell us who's ordering, who it's going to and the delivery address. Nothing is paid now — you pay in person.",
-  lg1:"Your details", fullName:"Full name", phName:"e.g. Lucía Ferrer Martí", phone:"Phone", email:"Email", optional:"(optional)", phEmail:"you@example.com",
-  lg2:"Who is it going to?", toMe:"To me", toMeS:"I'll receive the parcel myself", toOther:"To someone else", toOtherS:"A gift, or someone else receives it",
-  recName:"Recipient's full name", phRecName:"Who will receive it", recPhone:"Recipient's phone", phRecPhone:"For the courier",
-  lg3:"Delivery address", street:"Street and number", phStreet:"e.g. Carrer de Cadis, 21", extra:"Floor, door, staircase", phExtra:"e.g. 3º, pta. 7",
-  postcode:"Postcode", pcHint:"Free delivery for 46xxx", pcFree:"Free delivery · 24–48 h", pcPaid:"Delivery 5,90 € · 2–4 working days",
-  city:"Town / city", province:"Province", phProvince:"Filled in from postcode", country:"Country", countryVal:"Spain (mainland)",
-  notes:"Delivery notes", phNotes:"Buzzer name, best time to deliver, leave with the neighbour at 2ª…",
-  lg4:"Payment", payInPerson:"Pay in person", payInPersonS:"Cash, card or Bizum when your order is delivered, or at our shop in Russafa. Nothing is charged online.",
-  lg5:"Check and send", confirm:"The names and delivery address above are correct.", send:"Send order", sending:"Sending…", sendNote:"You'll get an order sheet straight away.",
-  sumTitle:"Your order", subtotal:"Subtotal", delivery:"Delivery", enterPc:"Enter postcode", toPay:"To pay in person", sumNote:"No card details online. You pay in person when you receive your order.", bagEmptyShort:"Your bag is empty.",
-  eName:"Enter your full name.", ePhone:"Enter a phone number so the courier can reach you.", eEmail:"Check the email address — it looks incomplete.",
-  eRec:"Enter the full name of the person receiving the order.", eStreet:"Enter the street and number (or s/n if it has none).",
-  ePc5:"Enter a 5-digit Spanish postcode, e.g. 46006.", ePcBad:"That isn't a Spanish postcode — check the first two digits.", ePcIsland:"We can't deliver to {region} yet — mainland Spain only.",
-  reg07:"the Balearic Islands", reg35:"the Canary Islands", reg38:"the Canary Islands", reg51:"Ceuta", reg52:"Melilla",
-  eCity:"Enter the town or city.", eConfirm:"Tick the box to confirm the names and address are correct.", eBagEmpty:"Your bag is empty — add something from the collection first.",
-  eAccess:"<strong>This link can't send orders.</strong> Your access to this page is view-only. Ask the shop for a link with “Can interact” access, then send the order again.",
-  eQuota:"<strong>The shop's order list is full.</strong> Please contact the shop in person — your bag has been kept.",
-  eReach:"<strong>This page can't reach the shop's order list right now.</strong> Reload the page and send the order again — your bag has been kept.",
-  eRate:"<strong>Too many orders from this connection.</strong> Wait a few minutes and press Send order again — your bag has been kept.",
-  eInvalid:"<strong>Something in the form didn't look right to the shop.</strong> Check the details and press Send order again — your bag has been kept.",
-  eGeneric:"<strong>The order didn't go through.</strong> Check your connection and press Send order again — your bag has been kept.",
-  doneEyebrow:"Order sent", doneTitle:"Thank you, {name} — your order is in.", doneTitleLocal:"Your order sheet is ready, {name}.",
-  doneLedeMe:"We'll deliver it to you in {city}. You pay {total} in person — cash, card or Bizum.",
-  doneLedeOther:"We'll deliver it to {to} in {city}. You pay {total} in person — cash, card or Bizum.",
-  doneWarn:"<strong>Not sent to the shop.</strong> This copy of the page isn't connected to the shop's order list, so this order wasn't saved. Open the shop's own link to send it.",
-  backToShop:"Back to the shop", seeMine:"See my orders",
-  sheetKind:"Order sheet", orderNo:"Order no.", date:"Date", status:"Status", orderedBy:"Ordered by", deliverTo:"Deliver to", tel:"Tel.", notesLabel:"Delivery notes",
-  thItem:"Item", thColour:"Colour", thSize:"Size", thQty:"Qty", thAmount:"Amount", total:"Total to pay in person", spain:"Spain",
-  sheetPayTitle:"Payment — in person", sheetPay:"<strong>Pay in person.</strong> Cash, card or Bizum — to our courier on delivery, or at the shop in Russafa.",
-  signName:"Received by (name)", signDate:"Date", signSig:"Signature",
-  st_new:"New", st_packed:"Packed", st_out:"Out for delivery", st_delivered:"Delivered", st_cancelled:"Cancelled",
-  mineEyebrow:"Your account", mineTitle:"My orders", mineLede:"Orders you've sent. Only you and the shop can see them.",
-  noOrders:"No orders yet", noOrdersMine:"When you send an order form, it shows up here with its order sheet.", browse:"Browse the collection",
-  lblDeliverTo:"Deliver to", lblItems:"Items", lblToPay:"To pay", lblToCollect:"To collect", inPerson:"In person", sheetBtn:"Order sheet", openSheet:"Open order sheet",
-  orderedByLine:"Ordered by {name} · {phone}", statusFor:"Status for {id}",
-  adminEyebrow:"Shop staff only", adminTitle:"Orders", adminLede:"Every completed order form: who ordered, who it's going to, and where to deliver it. Customers only ever see their own.",
-  collect1:"still to collect in person across 1 open order", collectN:"still to collect in person across {n} open orders",
-  tab_open:"Open", tab_all:"All", statusAria:"Filter by status", searchLabel:"Search orders", searchPh:"Search name, order no., postcode…",
-  noOrdersAdmin:"When someone completes the order form, it appears here with their name, who it's going to and the delivery address.",
-  noMatch:"No orders match", noMatchS:"Try another status or clear the search.",
-  toastStatus:"{id} marked as {status}", toastFail:"Couldn't update the status — try again.",
-  bagTitle:"Your bag", closeBag:"Close bag", bagEmpty:"Your bag is empty", bagEmptyS:"Add a hoodie, trousers or anything else from the collection.",
-  qtyAria:"Quantity", less:"One less", more:"One more", remove:"Remove",
-  bagNote:"Free delivery in València province (46xxx), 5,90 € elsewhere in mainland Spain. Nothing is paid online — you pay in person.",
-  continue:"Continue to order form", closeSheet:"Close order sheet"
-},
-es: {
-  ann1:"Estamos en <b>Russafa, València</b>", ann2:"Pago solo en persona", ann3:"Envío gratis en la provincia de València",
-  brandSub:"València · España", navAria:"Principal", navShop:"Tienda", navHow:"Cómo pedir", navVisit:"Visítanos", navMine:"Mis pedidos", navAdmin:"Pedidos", langAria:"Idioma", bag:"Cesta",
-  heroEyebrow:"Estudio de ropa · Russafa, València",
-  heroH1:"Hecho en <em>València</em>.<br>Se paga en persona.",
-  heroLede:"Sudaderas gruesas, pantalones y básicos de nuestra tienda en Russafa. Haz tu pedido con el formulario, dinos para quién es y a dónde va, y paga en persona cuando llegue o en la tienda.",
-  heroCta:"Ver la colección", heroFind:"Cómo llegar",
-  f1t:"Sin pago online", f1s:"Efectivo, tarjeta o Bizum en persona", f2t:"Gratis en València", f2s:"Códigos postales 46xxx, 24–48 h", f3t:"Península", f3s:"5,90 € · 2–4 días laborables",
-  shopCardEyebrow:"La tienda", addrHtml:"Carrer de Sueca, Russafa<br>46006 València, España", hoursShort:"Lun–Vie 10:00–14:00 · 17:00–20:30<br>Sáb 10:30–14:30",
-  howEyebrow:"Cómo pedir", howTitle:"Tres pasos, sin tarjeta online.",
-  s1n:"Paso 1", s1t:"Elige tus prendas", s1p:"Escoge color y talla y añádelas a la cesta.",
-  s2n:"Paso 2", s2t:"Rellena el formulario", s2p:"Tu nombre, para quién es el pedido y la dirección de entrega completa.",
-  s3n:"Paso 3", s3t:"Paga en persona", s3p:"Efectivo, tarjeta o Bizum: al repartidor cuando llegue o en la tienda de Russafa.",
-  colEyebrow:"Otoño / Invierno 2026", colTitle:"La colección", colCount1:"1 prenda · precios con IVA (21 %) incluido", colCountN:"{n} prendas · precios con IVA (21 %) incluido", filtersAria:"Filtrar por categoría",
-  cat_all:"Todo", cat_sweats:"Sudaderas", cat_tops:"Camisetas y camisas", cat_trousers:"Pantalones", cat_accessories:"Accesorios",
-  newIn:"Novedad", colourAria:"Color", sizeAria:"Talla", sizeHint:"Elige una talla primero", addToBag:"Añadir a la cesta", oneSize:"Talla única",
-  visitEyebrow:"Visítanos", visitTitle:"Nuestra tienda está en Russafa, València.", visitAddr:"Obrador Túria<br>Carrer de Sueca, Russafa<br>46006 València, España",
-  monFri:"Lun – Vie", sat:"Sábado", sun:"Domingo", closed:"Cerrado", visitNote:"Pruébatelo todo en la tienda, o pide con el formulario y paga en persona.",
-  payTitle:"Pago — solo en persona", cash:"Efectivo", card:"Tarjeta", payNote:"Nunca cobramos online ni pedimos datos de tarjeta en esta web.",
-  deliveryTitle:"Envíos", thWhere:"Destino", thTime:"Plazo", thCost:"Precio", z1:"Provincia de València", z1s:"Códigos postales 46xxx", free:"Gratis", z2:"Resto de la península", days:"2–4 días laborables", z3:"Baleares, Canarias, Ceuta y Melilla", notYet:"Aún no",
-  foot1:"— ropa diseñada y vendida en València, España.", foot3:"Precios con IVA · Pago solo en persona",
-  backShop:"← Volver a la tienda", ofEyebrow:"Formulario de pedido", ofTitle:"Completa tu pedido", ofLede:"Dinos quién hace el pedido, para quién es y la dirección de entrega. Ahora no pagas nada: pagas en persona.",
-  lg1:"Tus datos", fullName:"Nombre y apellidos", phName:"p. ej. Lucía Ferrer Martí", phone:"Teléfono", email:"Correo electrónico", optional:"(opcional)", phEmail:"tu@ejemplo.com",
-  lg2:"¿Para quién es?", toMe:"Para mí", toMeS:"Recibiré yo el paquete", toOther:"Para otra persona", toOtherS:"Un regalo, o lo recibe otra persona",
-  recName:"Nombre y apellidos de quien lo recibe", phRecName:"Quién lo recibirá", recPhone:"Teléfono de quien lo recibe", phRecPhone:"Para el repartidor",
-  lg3:"Dirección de entrega", street:"Calle y número", phStreet:"p. ej. Carrer de Cadis, 21", extra:"Piso, puerta, escalera", phExtra:"p. ej. 3º, pta. 7",
-  postcode:"Código postal", pcHint:"Envío gratis para 46xxx", pcFree:"Envío gratis · 24–48 h", pcPaid:"Envío 5,90 € · 2–4 días laborables",
-  city:"Localidad", province:"Provincia", phProvince:"Se rellena con el código postal", country:"País", countryVal:"España (península)",
-  notes:"Notas para la entrega", phNotes:"Nombre en el timbre, mejor hora de entrega, dejar al vecino del 2º…",
-  lg4:"Pago", payInPerson:"Pago en persona", payInPersonS:"Efectivo, tarjeta o Bizum al recibir tu pedido o en nuestra tienda de Russafa. No se cobra nada online.",
-  lg5:"Revisar y enviar", confirm:"Los nombres y la dirección de entrega son correctos.", send:"Enviar pedido", sending:"Enviando…", sendNote:"Recibirás la hoja de pedido al momento.",
-  sumTitle:"Tu pedido", subtotal:"Subtotal", delivery:"Envío", enterPc:"Falta el código postal", toPay:"A pagar en persona", sumNote:"Sin datos de tarjeta online. Pagas en persona al recibir tu pedido.", bagEmptyShort:"Tu cesta está vacía.",
-  eName:"Escribe tu nombre y apellidos.", ePhone:"Escribe un teléfono para que el repartidor pueda contactarte.", eEmail:"Revisa el correo: parece incompleto.",
-  eRec:"Escribe el nombre y apellidos de quien recibe el pedido.", eStreet:"Escribe la calle y el número (o s/n si no tiene).",
-  ePc5:"Escribe un código postal de 5 cifras, p. ej. 46006.", ePcBad:"Ese código postal no es español: revisa las dos primeras cifras.", ePcIsland:"Aún no enviamos a {region}: solo península.",
-  reg07:"Baleares", reg35:"Canarias", reg38:"Canarias", reg51:"Ceuta", reg52:"Melilla",
-  eCity:"Escribe la localidad.", eConfirm:"Marca la casilla para confirmar que los datos son correctos.", eBagEmpty:"Tu cesta está vacía: añade algo de la colección primero.",
-  eAccess:"<strong>Este enlace no puede enviar pedidos.</strong> Tu acceso a esta página es solo de lectura. Pide a la tienda un enlace con acceso “Puede interactuar” y vuelve a enviar el pedido.",
-  eQuota:"<strong>La lista de pedidos de la tienda está llena.</strong> Contacta con la tienda en persona; hemos guardado tu cesta.",
-  eReach:"<strong>Ahora mismo esta página no puede conectar con la lista de pedidos.</strong> Recarga la página y vuelve a enviar el pedido; hemos guardado tu cesta.",
-  eRate:"<strong>Demasiados pedidos desde esta conexión.</strong> Espera unos minutos y pulsa Enviar pedido otra vez; hemos guardado tu cesta.",
-  eInvalid:"<strong>Algún dato del formulario no parece correcto.</strong> Revísalo y pulsa Enviar pedido otra vez; hemos guardado tu cesta.",
-  eGeneric:"<strong>El pedido no se ha enviado.</strong> Revisa tu conexión y pulsa Enviar pedido otra vez; hemos guardado tu cesta.",
-  doneEyebrow:"Pedido enviado", doneTitle:"Gracias, {name}. Hemos recibido tu pedido.", doneTitleLocal:"Tu hoja de pedido está lista, {name}.",
-  doneLedeMe:"Te lo entregaremos en {city}. Pagas {total} en persona: efectivo, tarjeta o Bizum.",
-  doneLedeOther:"Se lo entregaremos a {to} en {city}. Pagas {total} en persona: efectivo, tarjeta o Bizum.",
-  doneWarn:"<strong>No se ha enviado a la tienda.</strong> Esta copia de la página no está conectada a la lista de pedidos, así que el pedido no se ha guardado. Abre el enlace de la tienda para enviarlo.",
-  backToShop:"Volver a la tienda", seeMine:"Ver mis pedidos",
-  sheetKind:"Hoja de pedido", orderNo:"N.º de pedido", date:"Fecha", status:"Estado", orderedBy:"Pedido por", deliverTo:"Entregar a", tel:"Tel.", notesLabel:"Notas de entrega",
-  thItem:"Artículo", thColour:"Color", thSize:"Talla", thQty:"Cant.", thAmount:"Importe", total:"Total a pagar en persona", spain:"España",
-  sheetPayTitle:"Pago — en persona", sheetPay:"<strong>Pago en persona.</strong> Efectivo, tarjeta o Bizum: al repartidor en la entrega o en la tienda de Russafa.",
-  signName:"Recibido por (nombre)", signDate:"Fecha", signSig:"Firma",
-  st_new:"Nuevo", st_packed:"Preparado", st_out:"En reparto", st_delivered:"Entregado", st_cancelled:"Cancelado",
-  mineEyebrow:"Tu cuenta", mineTitle:"Mis pedidos", mineLede:"Los pedidos que has enviado. Solo tú y la tienda podéis verlos.",
-  noOrders:"Aún no hay pedidos", noOrdersMine:"Cuando envíes un pedido, aparecerá aquí con su hoja de pedido.", browse:"Ver la colección",
-  lblDeliverTo:"Entregar a", lblItems:"Artículos", lblToPay:"A pagar", lblToCollect:"A cobrar", inPerson:"En persona", sheetBtn:"Hoja de pedido", openSheet:"Abrir hoja de pedido",
-  orderedByLine:"Pedido por {name} · {phone}", statusFor:"Estado de {id}",
-  adminEyebrow:"Solo personal de la tienda", adminTitle:"Pedidos", adminLede:"Todos los formularios enviados: quién pide, para quién es y dónde entregarlo. Cada cliente solo ve los suyos.",
-  collect1:"pendiente de cobrar en persona en 1 pedido abierto", collectN:"pendiente de cobrar en persona en {n} pedidos abiertos",
-  tab_open:"Abiertos", tab_all:"Todos", statusAria:"Filtrar por estado", searchLabel:"Buscar pedidos", searchPh:"Buscar nombre, n.º de pedido, código postal…",
-  noOrdersAdmin:"Cuando alguien complete el formulario, aparecerá aquí con su nombre, para quién es y la dirección de entrega.",
-  noMatch:"Ningún pedido coincide", noMatchS:"Prueba otro estado o borra la búsqueda.",
-  toastStatus:"{id} marcado como {status}", toastFail:"No se pudo actualizar el estado. Inténtalo de nuevo.",
-  bagTitle:"Tu cesta", closeBag:"Cerrar cesta", bagEmpty:"Tu cesta está vacía", bagEmptyS:"Añade una sudadera, unos pantalones o lo que quieras de la colección.",
-  qtyAria:"Cantidad", less:"Uno menos", more:"Uno más", remove:"Quitar",
-  bagNote:"Envío gratis en la provincia de València (46xxx) y 5,90 € en el resto de la península. No pagas nada online: pagas en persona.",
-  continue:"Continuar al formulario", closeSheet:"Cerrar hoja de pedido"
-}};
-const LANG_KEY = "obrador-turia-lang";
-let lang = "en";
-try {
-  const saved = localStorage.getItem(LANG_KEY);
-  if (saved === "en" || saved === "es") lang = saved;
-  else if (/^(es|ca)\b/i.test(navigator.language || "")) lang = "es";
-} catch(e) { if (/^(es|ca)\b/i.test(navigator.language || "")) lang = "es"; }
-function t(key, vars){
-  let s = (I18N[lang] && I18N[lang][key]) ?? I18N.en[key] ?? key;
-  if (vars) s = s.replace(/\{(\w+)\}/g, (m,k) => (k in vars ? vars[k] : m));
-  return s;
-}
-
-/* ================= catalogue ================= */
-const COLORS = {
-  limestone:{hex:"#D8D3C6", en:"Limestone", es:"Caliza"},
-  manises:{hex:"#2D4F95", en:"Manises Blue", es:"Azul Manises"},
-  ink:{hex:"#23282F", en:"Ink", es:"Tinta"},
-  olive:{hex:"#686C48", en:"Olive", es:"Oliva"},
-  heather:{hex:"#A8AAA6", en:"Heather Grey", es:"Gris jaspeado"},
-  taronja:{hex:"#D6793B", en:"Taronja", es:"Taronja"},
-  chalk:{hex:"#F5F4F0", en:"Chalk", es:"Tiza"},
-  stone:{hex:"#B9AF9D", en:"Stone", es:"Piedra"},
-  sand:{hex:"#CDBE9F", en:"Sand", es:"Arena"}
+// Prices live here too, so totals in the email can't be changed from the browser.
+const PRODUCTS = {
+  "cabanyal-hoodie":  { name: "Cabanyal Heavyweight Hoodie", price: 69 },
+  "albufera-zip":     { name: "Albufera Zip Hoodie",         price: 75 },
+  "carme-trousers":   { name: "Carme Pleated Trousers",      price: 82 },
+  "malvarrosa-cargo": { name: "Malvarrosa Cargo Trousers",   price: 74 },
+  "russafa-crew":     { name: "Russafa Crewneck",            price: 58 },
+  "azahar-tee":       { name: "Azahar Boxy Tee",             price: 32 },
+  "mercat-overshirt": { name: "Mercat Twill Overshirt",      price: 89 },
+  "micalet-beanie":   { name: "Micalet Rib Beanie",          price: 24 },
 };
-const colorName = (k, fallback) => COLORS[k] ? COLORS[k][lang] : (fallback || k);
-const TOP = ["XS","S","M","L","XL","XXL"];
-const WAIST = ["28","30","32","34","36"];
-const ONE = "One size";
-const PRODUCTS = [
-  {id:"cabanyal-hoodie", cat:"sweats", type:"hoodie", price:69, colors:["ink","limestone","manises"], sizes:TOP, isNew:false,
-   name:{en:"Cabanyal Heavyweight Hoodie", es:"Sudadera con capucha Cabanyal"},
-   desc:{en:"480 g brushed-back cotton fleece. Relaxed fit, double-layer hood.", es:"Felpa de algodón perchada de 480 g. Corte holgado y capucha de doble capa."}},
-  {id:"albufera-zip", cat:"sweats", type:"zip", price:75, colors:["olive","heather","ink"], sizes:TOP, isNew:true,
-   name:{en:"Albufera Zip Hoodie", es:"Sudadera con cremallera Albufera"},
-   desc:{en:"420 g loopback cotton with a two-way metal zip.", es:"Algodón de rizo de 420 g con cremallera metálica de doble cursor."}},
-  {id:"carme-trousers", cat:"trousers", type:"trouser", price:82, colors:["stone","ink","olive"], sizes:WAIST, isNew:false,
-   name:{en:"Carme Pleated Trousers", es:"Pantalón de pinzas Carme"},
-   desc:{en:"Wide-leg wool-blend twill with front pleats and slant pockets.", es:"Sarga de mezcla de lana, pierna ancha, pinzas delanteras y bolsillos al bies."}},
-  {id:"malvarrosa-cargo", cat:"trousers", type:"cargo", price:74, colors:["olive","sand","ink"], sizes:WAIST, isNew:false,
-   name:{en:"Malvarrosa Cargo Trousers", es:"Pantalón cargo Malvarrosa"},
-   desc:{en:"Garment-dyed cotton ripstop with button-flap cargo pockets.", es:"Ripstop de algodón teñido en prenda con bolsillos cargo con solapa."}},
-  {id:"russafa-crew", cat:"sweats", type:"crew", price:58, colors:["heather","taronja","limestone"], sizes:TOP, isNew:false,
-   name:{en:"Russafa Crewneck", es:"Sudadera de cuello redondo Russafa"},
-   desc:{en:"Midweight 380 g cotton with ribbed cuffs and hem.", es:"Algodón de 380 g con puños y bajo de canalé."}},
-  {id:"azahar-tee", cat:"tops", type:"tee", price:32, colors:["chalk","ink","manises"], sizes:TOP, isNew:false,
-   name:{en:"Azahar Boxy Tee", es:"Camiseta amplia Azahar"},
-   desc:{en:"220 g combed cotton jersey, boxy cut, dropped shoulder.", es:"Punto de algodón peinado de 220 g, corte cuadrado y hombro caído."}},
-  {id:"mercat-overshirt", cat:"tops", type:"overshirt", price:89, colors:["manises","stone"], sizes:TOP, isNew:true,
-   name:{en:"Mercat Twill Overshirt", es:"Sobrecamisa de sarga Mercat"},
-   desc:{en:"Heavy cotton twill with two chest pockets. Wear it as a light jacket.", es:"Sarga de algodón gruesa con dos bolsillos en el pecho. Úsala como chaqueta ligera."}},
-  {id:"micalet-beanie", cat:"accessories", type:"beanie", price:24, colors:["taronja","ink","limestone"], sizes:[ONE], isNew:false,
-   name:{en:"Micalet Rib Beanie", es:"Gorro de canalé Micalet"},
-   desc:{en:"Chunky-rib merino blend with a turn-up cuff.", es:"Canalé grueso de mezcla de merino con vuelta."}}
-];
-const CATS = ["all","sweats","tops","trousers","accessories"];
-const PRODUCT_BY_ID = Object.fromEntries(PRODUCTS.map(p=>[p.id,p]));
-const productName = (id, fallback) => PRODUCT_BY_ID[id] ? PRODUCT_BY_ID[id].name[lang] : (fallback || id);
-const sizeLabel = s => s === ONE ? t("oneSize") : s;
-
-const PROVINCES = {"01":"Araba/Álava","02":"Albacete","03":"Alacant/Alicante","04":"Almería","05":"Ávila","06":"Badajoz","07":"Illes Balears","08":"Barcelona","09":"Burgos","10":"Cáceres","11":"Cádiz","12":"Castelló/Castellón","13":"Ciudad Real","14":"Córdoba","15":"A Coruña","16":"Cuenca","17":"Girona","18":"Granada","19":"Guadalajara","20":"Gipuzkoa","21":"Huelva","22":"Huesca","23":"Jaén","24":"León","25":"Lleida","26":"La Rioja","27":"Lugo","28":"Madrid","29":"Málaga","30":"Murcia","31":"Navarra","32":"Ourense","33":"Asturias","34":"Palencia","35":"Las Palmas","36":"Pontevedra","37":"Salamanca","38":"Santa Cruz de Tenerife","39":"Cantabria","40":"Segovia","41":"Sevilla","42":"Soria","43":"Tarragona","44":"Teruel","45":"Toledo","46":"València/Valencia","47":"Valladolid","48":"Bizkaia","49":"Zamora","50":"Zaragoza","51":"Ceuta","52":"Melilla"};
-const NOT_MAINLAND = ["07","35","38","51","52"];
+const COLOURS = {
+  limestone: "Limestone", manises: "Manises Blue", ink: "Ink", olive: "Olive", heather: "Heather Grey",
+  taronja: "Taronja", chalk: "Chalk", stone: "Stone", sand: "Sand",
+};
+const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "28", "30", "32", "34", "36", "One size"];
+const PROVINCES = {"01":"Araba/Álava","02":"Albacete","03":"Alacant/Alicante","04":"Almería","05":"Ávila","06":"Badajoz","08":"Barcelona","09":"Burgos","10":"Cáceres","11":"Cádiz","12":"Castelló/Castellón","13":"Ciudad Real","14":"Córdoba","15":"A Coruña","16":"Cuenca","17":"Girona","18":"Granada","19":"Guadalajara","20":"Gipuzkoa","21":"Huelva","22":"Huesca","23":"Jaén","24":"León","25":"Lleida","26":"La Rioja","27":"Lugo","28":"Madrid","29":"Málaga","30":"Murcia","31":"Navarra","32":"Ourense","33":"Asturias","34":"Palencia","36":"Pontevedra","37":"Salamanca","39":"Cantabria","40":"Segovia","41":"Sevilla","42":"Soria","43":"Tarragona","44":"Teruel","45":"Toledo","46":"València/Valencia","47":"Valladolid","48":"Bizkaia","49":"Zamora","50":"Zaragoza"};
 const DELIVERY_FEE = 5.9;
-const STATUS = ["new","packed","out","delivered","cancelled"];
-const CLOSED = ["delivered","cancelled"];
 
-/* ================= helpers ================= */
-const $ = (s,r=document)=>r.querySelector(s);
-const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
-const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const eur = new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"});
-const money = n => eur.format(Number(n)||0);
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
-const byNewest = (x,y)=>String(y.createdAt).localeCompare(String(x.createdAt));
-function fmtDate(iso){
-  const d = new Date(iso); if (isNaN(d)) return "—";
-  const p = n => String(n).padStart(2,"0");
-  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function lum(hex){
-  const n = parseInt(hex.slice(1),16);
-  return .2126*((n>>16&255)/255)+.7152*((n>>8&255)/255)+.0722*((n&255)/255);
-}
+const app = express();
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(express.json({ limit: "64kb" }));
+if (fs.existsSync(PUBLIC_DIR)) app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
+app.get(["/", "/index.html"], (req, res) => INDEX ? res.sendFile(INDEX) : res.status(500).send("Shop page (index.html) is missing from the repository."));
 
-/* ================= scroll fade-ins ================= */
-const motionOK = "IntersectionObserver" in window && !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-const io = motionOK ? new IntersectionObserver(entries => {
-  let i = 0;
-  entries.forEach(en => {
-    if (!en.isIntersecting) return;
-    en.target.style.setProperty("--rd", (Math.min(i++, 7) * 0.09) + "s");
-    en.target.classList.add("in");
-    io.unobserve(en.target);
-  });
-}, {rootMargin:"0px 0px -6% 0px", threshold:0.12}) : null;
-function reveal(els){
-  if (!io) return;
-  els.forEach(el => { if (!el || el.classList.contains("in")) return; el.classList.add("reveal"); io.observe(el); });
+app.get("/healthz", (req, res) => res.json({ ok: true, email: Boolean(RESEND_API_KEY && ORDER_EMAIL) }));
+
+// ---- simple per-connection limit: 8 orders per 10 minutes ----
+const hits = new Map();
+function rateLimited(ip) {
+  const now = Date.now(), windowMs = 10 * 60 * 1000;
+  const list = (hits.get(ip) || []).filter(t => now - t < windowMs);
+  list.push(now);
+  hits.set(ip, list);
+  if (hits.size > 5000) hits.clear();
+  return list.length > 8;
 }
 
-/* ================= garment drawings ================= */
-const SWEAT = "M76 34C86 50 114 50 124 34L150 42C162 46 168 56 170 70L182 150L160 154L148 94L148 164L52 164L52 94L40 154L18 150L30 70C32 56 38 46 50 42Z";
-function garmentSVG(type, hex){
-  const dark = lum(hex) < .38;
-  const det = dark ? "rgba(255,255,255,.2)" : "rgba(20,26,34,.22)";
-  const out = "rgba(20,26,34,.32)";
-  const hole = "rgba(10,14,20,.30)";
-  const hard = dark ? "rgba(255,255,255,.55)" : "rgba(20,26,34,.45)";
-  const F = `fill="${hex}" stroke="${out}" stroke-width="1.3" stroke-linejoin="round"`;
-  const D = `fill="none" stroke="${det}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"`;
-  const cuffs = `<path ${D} d="M19.5 140L42 144M180.5 140L158 144"/>`;
-  const hood = `<path ${F} d="M64 46C56 4 144 4 136 46C124 58 76 58 64 46Z"/><path fill="${hole}" d="M80 46C78 16 122 16 120 46C112 54 88 54 80 46Z"/>`;
-  let g = "";
-  switch(type){
-    case "hoodie":
-      g = `<path ${F} d="${SWEAT}"/>${cuffs}<path ${D} d="M52 153H148M68 116H132L142 150H58Z"/>${hood}<path fill="none" stroke="${hard}" stroke-width="1.6" stroke-linecap="round" d="M90 55L87 84M110 55L113 84"/>`;
-      break;
-    case "zip":
-      g = `<path ${F} d="${SWEAT}"/>${cuffs}<path ${D} d="M52 153H148M66 118L73 146M134 118L127 146"/>${hood}<path fill="none" stroke="${hard}" stroke-width="1.8" d="M100 54V164"/><rect x="97" y="58" width="6" height="11" rx="1.5" fill="${hard}"/>`;
-      break;
-    case "crew":
-      g = `<path ${F} d="${SWEAT}"/><path fill="${hole}" d="M76 34C86 50 114 50 124 34C112 40 88 40 76 34Z"/>${cuffs}<path ${D} d="M52 153H148M73 36C84 57 116 57 127 36"/>`;
-      break;
-    case "overshirt":
-      g = `<path ${F} d="${SWEAT}"/><path fill="${hole}" d="M76 34C88 28 112 28 124 34L100 56Z"/><path ${D} d="M100 56V164M64 76H88V102H64ZM64 83H88M112 76H136V102H112ZM112 83H136M52 157H148"/>${cuffs}<path ${F} d="M76 34L100 56L90 64L68 40Z"/><path ${F} d="M124 34L100 56L110 64L132 40Z"/>${[76,98,120,142].map(y=>`<circle cx="100" cy="${y}" r="2.3" fill="${hard}"/>`).join("")}`;
-      break;
-    case "tee":
-      g = `<path ${F} d="M74 36C86 54 114 54 126 36L150 44L178 70L160 96L146 86L146 166L54 166L54 86L40 96L22 70L50 44Z"/><path fill="${hole}" d="M74 36C86 54 114 54 126 36C112 42 88 42 74 36Z"/><path ${D} d="M71 38C84 60 116 60 129 38M27 66L45 92.5M173 66L155 92.5M54 158H146"/>`;
-      break;
-    case "trouser":
-      g = `<path ${F} d="M60 26L140 26L150 178L108 178L100 78L92 178L50 178Z"/><path ${D} d="M59.2 38H140.8M70 26V38M86 26V38M114 26V38M130 26V38M93 38V62C93 68 96 72 100 74M78 38L80 96M122 38L120 96M62 41L73 62M138 41L127 62M50.5 170H92.6M107.4 170H149.5"/><circle cx="100" cy="32" r="2" fill="${hard}"/>`;
-      break;
-    case "cargo":
-      g = `<path ${F} d="M62 26L138 26L144 178L106 178L100 80L94 178L56 178Z"/><path ${D} d="M61.5 38H138.5M72 26V38M88 26V38M112 26V38M128 26V38M94 38V62C94 68 97 72 100 74M64 41L74 60M136 41L126 60M63 102H85V134H63ZM63 110H85M115 102H137V134H115ZM115 110H137M57 168H94.6M105.4 168H143.4"/><circle cx="74" cy="106" r="1.8" fill="${hard}"/><circle cx="126" cy="106" r="1.8" fill="${hard}"/><circle cx="100" cy="32" r="2" fill="${hard}"/>`;
-      break;
-    case "beanie": {
-      let ribs = ""; for (let x=58; x<=142; x+=7) ribs += `M${x} 119V147`;
-      g = `<path ${F} d="M56 122C54 72 76 46 100 46C124 46 146 72 144 122Z"/><path ${D} d="M80 116C78 86 86 62 98 50M100 116V50M120 116C122 86 114 62 102 50"/><path ${F} d="M50 118Q50 114 54 114H146Q150 114 150 118V148Q150 152 146 152H54Q50 152 50 148Z"/><path ${D} d="${ribs}"/><rect x="89" y="124" width="22" height="14" rx="1.5" fill="#EFEBE2" stroke="rgba(20,26,34,.3)"/><path d="M94 131H106" stroke="#234A9C" stroke-width="1.4"/>`;
-      break; }
-  }
-  return `<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false"><ellipse cx="100" cy="186" rx="64" ry="5" fill="rgba(20,26,34,.09)"/>${g}</svg>`;
+const str = (v, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const eur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
+const money = n => eur.format(n);
+const madridTime = new Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+function makeId() {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let r = "";
+  for (let i = 0; i < 4; i++) r += A[Math.floor(Math.random() * A.length)];
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `OT-${p(d.getMonth() + 1)}${p(d.getDate())}-${r}`;
 }
 
-/* ================= state ================= */
-const BAG_KEY = "obrador-turia-bag";
-let bag = [];
-try {
-  const raw = localStorage.getItem(BAG_KEY);
-  const v = raw ? JSON.parse(raw) : [];
-  if (Array.isArray(v)) bag = v.filter(i => i && PRODUCT_BY_ID[i.id] && COLORS[i.color] && PRODUCT_BY_ID[i.id].sizes.includes(i.size) && i.qty > 0);
-} catch(e) {}
-function saveBag(){ try { localStorage.setItem(BAG_KEY, JSON.stringify(bag)); } catch(e) {} }
-const bagQty = () => bag.reduce((s,i)=>s+i.qty,0);
-const bagSubtotal = () => bag.reduce((s,i)=>s+PRODUCT_BY_ID[i.id].price*i.qty,0);
+// Check the order and rebuild it from trusted values.
+function cleanOrder(body) {
+  if (!body || typeof body !== "object") return null;
+  const b = body.buyer || {}, r = body.recipient || {}, a = body.address || {};
+  const buyer = { name: str(b.name, 120), phone: str(b.phone, 40), email: str(b.email, 160) };
+  if (buyer.name.length < 2 || buyer.phone.replace(/\D/g, "").length < 9) return null;
+  if (buyer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyer.email)) buyer.email = "";
 
-let db = null, user = null, uid = null, canAdmin = false;
-let myOrders = [], allOrders = [], statuses = {};
-let filter = "all", adminFilter = "open", current = "shop";
-let lastDone = null, openSheetId = null, formErrCode = null;
-const sel = {};  // product id -> {color, size}
-PRODUCTS.forEach(p => { sel[p.id] = {color:p.colors[0], size: p.sizes.length === 1 ? p.sizes[0] : ""}; });
+  const sameAsBuyer = r.sameAsBuyer !== false;
+  const recipient = sameAsBuyer
+    ? { name: buyer.name, phone: buyer.phone, sameAsBuyer: true }
+    : { name: str(r.name, 120), phone: str(r.phone, 40), sameAsBuyer: false };
+  if (recipient.name.length < 2) return null;
 
-/* ================= collection ================= */
-function renderFilters(){
-  $("#filters").innerHTML = CATS.map(k => {
-    const c = k==="all" ? PRODUCTS.length : PRODUCTS.filter(p=>p.cat===k).length;
-    return `<button type="button" class="chip" data-cat="${k}" aria-pressed="${k===filter}">${t("cat_"+k)}<span class="c">${c}</span></button>`;
-  }).join("");
-}
-function productCard(p){
-  const s = sel[p.id];
-  return `<article class="product" data-id="${p.id}">
-    <div class="tile">${garmentSVG(p.type, COLORS[s.color].hex)}<span class="tile-tag">${p.isNew ? t("newIn") : ""}</span></div>
-    <div class="p-head"><h3>${esc(p.name[lang])}</h3><span class="price">${money(p.price)}</span></div>
-    <p class="p-desc">${esc(p.desc[lang])}</p>
-    <div class="p-color">
-      <div class="swatches" role="group" aria-label="${t("colourAria")}">${p.colors.map(c=>`<button type="button" class="sw" data-color="${c}" style="--sw:${COLORS[c].hex}" aria-pressed="${c===s.color}" aria-label="${colorName(c)}" title="${colorName(c)}"></button>`).join("")}</div>
-      <span class="color-name">${colorName(s.color)}</span>
-    </div>
-    <div class="sizes" role="group" aria-label="${t("sizeAria")}">${p.sizes.map(z=>`<button type="button" class="size" data-size="${esc(z)}" aria-pressed="${z===s.size}">${esc(sizeLabel(z))}</button>`).join("")}</div>
-    <p class="size-hint" hidden>${t("sizeHint")}</p>
-    <button type="button" class="btn line add">${t("addToBag")}</button>
-  </article>`;
-}
-function renderGrid(animate){
-  const list = PRODUCTS.filter(p => filter==="all" || p.cat===filter);
-  $("#grid").innerHTML = list.map(productCard).join("");
-  $("#colCount").textContent = list.length === 1 ? t("colCount1") : t("colCountN", {n:list.length});
-  if (animate) reveal($$("#grid .product"));
-}
-$("#filters").addEventListener("click", e => {
-  const b = e.target.closest(".chip"); if (!b) return;
-  filter = b.dataset.cat; renderFilters(); renderGrid(true);
-});
-$("#grid").addEventListener("click", e => {
-  const card = e.target.closest(".product"); if (!card) return;
-  const p = PRODUCT_BY_ID[card.dataset.id], s = sel[p.id];
-  const sw = e.target.closest(".sw");
-  if (sw) {
-    s.color = sw.dataset.color;
-    $$(".sw",card).forEach(b=>b.setAttribute("aria-pressed", String(b===sw)));
-    $(".tile svg",card).outerHTML = garmentSVG(p.type, COLORS[s.color].hex);
-    $(".color-name",card).textContent = colorName(s.color);
-    return;
-  }
-  const sz = e.target.closest(".size");
-  if (sz) {
-    s.size = sz.dataset.size;
-    $$(".size",card).forEach(b=>b.setAttribute("aria-pressed", String(b===sz)));
-    $(".size-hint",card).hidden = true;
-    return;
-  }
-  if (e.target.closest(".add")) {
-    if (!s.size) {
-      const box = $(".sizes",card);
-      $(".size-hint",card).hidden = false;
-      box.classList.remove("shake"); void box.offsetWidth; box.classList.add("shake");
-      return;
-    }
-    addToBag(p.id, s.color, s.size);
-  }
-});
+  const postcode = str(a.postcode, 5);
+  if (!/^\d{5}$/.test(postcode) || !PROVINCES[postcode.slice(0, 2)]) return null;
+  const address = {
+    street: str(a.street, 200), extra: str(a.extra, 120), postcode,
+    city: str(a.city, 120), province: PROVINCES[postcode.slice(0, 2)], country: "Spain",
+  };
+  if (address.street.length < 3 || address.city.length < 2) return null;
 
-/* ================= bag ================= */
-function addToBag(id,color,size){
-  const ex = bag.find(i=>i.id===id && i.color===color && i.size===size);
-  if (ex) ex.qty = Math.min(ex.qty+1, 10); else bag.push({id,color,size,qty:1});
-  saveBag(); renderBag(); openBag();
-}
-function renderBag(){
-  $("#bagCount").textContent = bagQty();
-  const items = $("#bagItems"), foot = $("#bagFoot");
-  if (!bag.length) {
-    items.innerHTML = `<div class="empty"><strong>${t("bagEmpty")}</strong><span>${t("bagEmptyS")}</span><button type="button" class="btn line" data-bag-browse>${t("browse")}</button></div>`;
-    foot.innerHTML = ""; foot.hidden = true;
-  } else {
-    items.innerHTML = bag.map((it,idx) => {
-      const p = PRODUCT_BY_ID[it.id];
-      return `<div class="bag-line" data-idx="${idx}">
-        <div class="mini">${garmentSVG(p.type, COLORS[it.color].hex)}</div>
-        <div><p class="bl-name">${esc(p.name[lang])}</p><p class="bl-meta">${colorName(it.color)} · ${esc(sizeLabel(it.size))}</p>
-          <div class="qty" role="group" aria-label="${t("qtyAria")}"><button type="button" data-q="-1" aria-label="${t("less")}">−</button><span>${it.qty}</span><button type="button" data-q="1" aria-label="${t("more")}">+</button></div></div>
-        <div class="bl-right"><span class="price">${money(p.price*it.qty)}</span><button type="button" class="remove" data-remove>${t("remove")}</button></div>
-      </div>`;
-    }).join("");
-    foot.hidden = false;
-    foot.innerHTML = `<div class="row"><span>${t("subtotal")}</span><span class="v">${money(bagSubtotal())}</span></div>
-      <p class="small">${t("bagNote")}</p>
-      <button type="button" class="btn primary lg block" data-checkout>${t("continue")}</button>`;
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 30) return null;
+  const items = [];
+  for (const it of body.items) {
+    const p = it && PRODUCTS[it.id];
+    const qty = Math.floor(Number(it && it.qty));
+    if (!p || !COLOURS[it.color] || !SIZES.includes(it.size) || !(qty >= 1 && qty <= 10)) return null;
+    items.push({ id: it.id, name: p.name, color: it.color, colorName: COLOURS[it.color], size: it.size, qty, price: p.price });
   }
-  if (current === "checkout") renderSummary();
-}
-let lastFocus = null;
-function openBag(){
-  lastFocus = document.activeElement;
-  $("#bag").classList.add("open"); $("#scrim").classList.add("open");
-  $("#bagBtn").setAttribute("aria-expanded","true");
-  setTimeout(()=>$("#bagClose").focus(), 60);
-}
-function closeBag(restore=true){
-  $("#bag").classList.remove("open"); $("#scrim").classList.remove("open");
-  $("#bagBtn").setAttribute("aria-expanded","false");
-  if (restore && lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
-}
-$("#bagBtn").addEventListener("click", openBag);
-$("#bagClose").addEventListener("click", ()=>closeBag());
-$("#scrim").addEventListener("click", ()=>closeBag());
-$("#bag").addEventListener("click", e => {
-  const line = e.target.closest(".bag-line");
-  if (line) {
-    const idx = +line.dataset.idx, it = bag[idx];
-    const q = e.target.closest("[data-q]");
-    if (q && it) { it.qty += +q.dataset.q; if (it.qty <= 0) bag.splice(idx,1); else it.qty = Math.min(it.qty,10); saveBag(); renderBag(); return; }
-    if (e.target.closest("[data-remove]") && it) { bag.splice(idx,1); saveBag(); renderBag(); return; }
-  }
-  if (e.target.closest("[data-checkout]")) { closeBag(false); showView("checkout"); return; }
-  if (e.target.closest("[data-bag-browse]")) { closeBag(false); go("shop","collection"); }
-});
-
-/* ================= views ================= */
-const VIEWS = ["shop","checkout","done","mine","admin"];
-function showView(name){
-  if (name==="checkout" && !bag.length) name = "shop";
-  if (name==="admin" && !canAdmin) name = "shop";
-  const changed = name !== current;
-  VIEWS.forEach(v => { $("#view-"+v).hidden = v !== name; });
-  current = name;
-  $("#navMine").removeAttribute("aria-current"); $("#navAdmin").removeAttribute("aria-current");
-  if (name==="mine") $("#navMine").setAttribute("aria-current","page");
-  if (name==="admin") $("#navAdmin").setAttribute("aria-current","page");
-  if (name==="checkout") { prefill(); renderSummary(); }
-  if (name==="mine") renderMine();
-  if (name==="admin") renderAdmin();
-  if (changed && motionOK && name !== "shop") {
-    const v = $("#view-"+name); v.classList.remove("entering"); void v.offsetWidth; v.classList.add("entering");
-  }
-  window.scrollTo({top:0, behavior:"instant"});
-}
-function go(view, anchor){
-  const same = current === view;
-  showView(view);
-  if (anchor && anchor !== "top") {
-    const el = document.getElementById(anchor);
-    if (el) requestAnimationFrame(() => {
-      const y = el.getBoundingClientRect().top + window.scrollY - $(".site-head").offsetHeight - 8;
-      window.scrollTo({top:y, behavior: same && motionOK ? "smooth" : "instant"});
-    });
-  }
-}
-document.addEventListener("click", e => {
-  const b = e.target.closest("[data-go]"); if (!b) return;
-  e.preventDefault(); go(b.dataset.go, b.dataset.anchor);
-});
-
-/* ================= order form ================= */
-const form = $("#orderForm");
-const val = id => ($("#"+id).value || "").trim();
-function setErr(id, key, vars){
-  const inp = $("#"+id), e = $("#err-"+id), f = inp && inp.closest(".field");
-  if (e) {
-    e.textContent = key ? t(key, vars) : "";
-    e.hidden = !key;
-    if (key) { e.dataset.key = key; e.dataset.vars = JSON.stringify(vars || {}); } else { delete e.dataset.key; }
-  }
-  if (f) f.classList.toggle("bad", !!key);
-  if (inp) {
-    if (key) { inp.setAttribute("aria-invalid","true"); inp.setAttribute("aria-describedby","err-"+id); }
-    else inp.removeAttribute("aria-invalid");
-  }
-}
-function postcodeInfo(pc){
-  if (!/^\d{5}$/.test(pc)) return {ok:false, key:"ePc5"};
-  const pre = pc.slice(0,2);
-  if (!PROVINCES[pre]) return {ok:false, key:"ePcBad"};
-  if (NOT_MAINLAND.includes(pre)) return {ok:false, key:"ePcIsland", vars:{region:t("reg"+pre)}};
-  return {ok:true, province:PROVINCES[pre], fee: pre==="46" ? 0 : DELIVERY_FEE, valenciaCity: +pc>=46001 && +pc<=46026};
-}
-function currentFee(){ const pc = val("postcode"); if (pc.length!==5) return null; const i = postcodeInfo(pc); return i.ok ? i.fee : null; }
-function onPostcode(){
-  const el = $("#postcode");
-  el.value = el.value.replace(/\D/g,"").slice(0,5);
-  const pc = el.value, info = pc.length===5 ? postcodeInfo(pc) : null;
-  $("#province").value = info && info.ok ? info.province : "";
-  if (info && info.ok && info.valenciaCity && !val("city")) $("#city").value = "València";
-  if (info && !info.ok) setErr("postcode", info.key, info.vars); else setErr("postcode", "");
-  $("#pcHint").textContent = info && info.ok ? (info.fee===0 ? t("pcFree") : t("pcPaid")) : t("pcHint");
-  renderSummary();
-}
-$("#postcode").addEventListener("input", onPostcode);
-form.addEventListener("change", e => {
-  if (e.target.name === "recipientMode") {
-    const other = $("#rmOther").checked;
-    $("#recipientFields").hidden = !other;
-    if (other) $("#recName").focus(); else setErr("recName","");
-  }
-  if (e.target.id === "confirm" && e.target.checked) setErr("confirm","");
-});
-form.addEventListener("input", e => {
-  const id = e.target.id;
-  if (id && id !== "postcode" && $("#err-"+id) && !$("#err-"+id).hidden) setErr(id,"");
-});
-function renderSummary(){
-  $("#sumLines").innerHTML = bag.map(it => {
-    const p = PRODUCT_BY_ID[it.id];
-    return `<div class="sum-line"><div class="mini">${garmentSVG(p.type, COLORS[it.color].hex)}</div><div><p class="n">${esc(p.name[lang])}</p><p class="m">${colorName(it.color)} · ${esc(sizeLabel(it.size))} · × ${it.qty}</p></div><span class="price">${money(p.price*it.qty)}</span></div>`;
-  }).join("") || `<p class="small">${t("bagEmptyShort")}</p>`;
-  const sub = bagSubtotal(), fee = currentFee();
-  $("#sumSub").textContent = money(sub);
-  $("#sumDel").textContent = fee===null ? t("enterPc") : fee===0 ? t("free") : money(fee);
-  $("#sumTotal").textContent = money(sub + (fee || 0));
-}
-function validate(){
-  const bad = [];
-  const need = (id, key, test) => { const ok = test(val(id)); setErr(id, ok ? "" : key); if (!ok) bad.push(id); };
-  need("buyerName", "eName", v => v.length >= 2);
-  need("buyerPhone", "ePhone", v => v.replace(/\D/g,"").length >= 9);
-  need("buyerEmail", "eEmail", v => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v));
-  if ($("#rmOther").checked) need("recName", "eRec", v => v.length >= 2);
-  need("street", "eStreet", v => v.length >= 3 && /\d|s\/n/i.test(v));
-  const pc = postcodeInfo(val("postcode")); if (pc.ok) setErr("postcode",""); else { setErr("postcode", pc.key, pc.vars); bad.push("postcode"); }
-  need("city", "eCity", v => v.length >= 2);
-  const conf = $("#confirm").checked;
-  setErr("confirm", conf ? "" : "eConfirm");
-  if (!conf) bad.push("confirm");
-  return bad;
-}
-function makeId(){
-  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", buf = new Uint32Array(4);
-  try { crypto.getRandomValues(buf); } catch(e) { for (let i=0;i<4;i++) buf[i] = Math.floor(Math.random()*1e9); }
-  let r = ""; buf.forEach(n => { r += A[n % A.length]; });
-  const d = new Date(), p = n => String(n).padStart(2,"0");
-  return `OT-${p(d.getMonth()+1)}${p(d.getDate())}-${r}`;
-}
-function buildOrder(){
-  const pc = postcodeInfo(val("postcode")), other = $("#rmOther").checked;
-  const items = bag.map(it => { const p = PRODUCT_BY_ID[it.id]; return {id:p.id, name:p.name.en, color:it.color, colorName:COLORS[it.color].en, size:it.size, qty:it.qty, price:p.price}; });
-  const subtotal = bagSubtotal(), delivery = pc.fee;
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const delivery = postcode.startsWith("46") ? 0 : DELIVERY_FEE;
+  const id = /^OT-\d{4}-[A-Z0-9]{4}$/.test(body.id || "") ? body.id : makeId();
   return {
-    id: makeId(), createdAt: new Date().toISOString(), lang,
-    buyer: {name:val("buyerName"), phone:val("buyerPhone"), email:val("buyerEmail")},
-    recipient: other ? {name:val("recName"), phone:val("recPhone"), sameAsBuyer:false} : {name:val("buyerName"), phone:val("buyerPhone"), sameAsBuyer:true},
-    address: {street:val("street"), extra:val("extra"), postcode:val("postcode"), city:val("city"), province:pc.province, country:"Spain"},
-    notes: val("notes"),
-    payment: "in-person",
-    items, subtotal, delivery, total: Math.round((subtotal + delivery)*100)/100
+    id, createdAt: new Date().toISOString(), lang: body.lang === "es" ? "es" : "en",
+    buyer, recipient, address, notes: str(body.notes, 1000), payment: "in-person",
+    items, subtotal, delivery, total: Math.round((subtotal + delivery) * 100) / 100,
   };
-}
-async function saveOrder(order){
-  if (!db || !uid) {
-    const res = await fetch("/api/orders", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(order)});
-    let out = null; try { out = await res.json(); } catch(e) {}
-    if (!res.ok || !out || !out.ok) { const err = new Error("server"); err.code = (out && out.code) || "server"; throw err; }
-    if (out.id) order.id = out.id;
-    if (out.createdAt) order.createdAt = out.createdAt;
-    return {saved:true, server:true};
-  }
-  const ref = db.doc("orders/" + uid);
-  const attempt = async () => {
-    const snap = await ref.get();
-    const d = snap.exists ? snap.data() : null;
-    const prev = d && Array.isArray(d.orders) ? d.orders : [];
-    if (prev.some(o => o && o.id === order.id)) return;
-    await ref.set({orders: prev.concat([order]), updatedAt: order.createdAt});
-  };
-  try { await attempt(); }
-  catch(err) {
-    if (err && err.code === "unavailable") { await sleep(400 + Math.random()*700); await attempt(); }
-    else throw err;
-  }
-  return {saved:true};
-}
-function errorKey(code){
-  if (code === "rate_limited") return "eRate";
-  if (code === "invalid_order") return "eInvalid";
-  if (code === "invalid_argument") return "eAccess";
-  if (code === "quota_exceeded") return "eQuota";
-  if (["not_granted","revoked","capability_disabled","capability_removed"].includes(code)) return "eReach";
-  return "eGeneric";
-}
-function showFormError(key){
-  const fe = $("#formError");
-  formErrCode = key;
-  if (!key) { fe.hidden = true; return; }
-  if (key === "eBagEmpty") fe.textContent = t(key); else fe.innerHTML = t(key);
-  fe.hidden = false;
-}
-form.addEventListener("submit", async e => {
-  e.preventDefault();
-  showFormError(null);
-  if (!bag.length) { showFormError("eBagEmpty"); return; }
-  const bad = validate();
-  if (bad.length) { const f = $("#"+bad[0]); f.focus({preventScroll:true}); f.scrollIntoView({block:"center", behavior: motionOK ? "smooth" : "auto"}); return; }
-  const order = buildOrder();
-  const btn = $("#sendBtn"); btn.disabled = true; btn.textContent = t("sending");
-  let res;
-  try { res = await saveOrder(order); }
-  catch(err) { res = {saved:false, error: (err && err.code) || "unavailable"}; }
-  btn.disabled = false; btn.textContent = t("send");
-  if (res.error) { showFormError(errorKey(res.error)); $("#formError").scrollIntoView({block:"center", behavior: motionOK ? "smooth" : "auto"}); return; }
-  bag = []; saveBag(); renderBag();
-  form.reset(); $("#recipientFields").hidden = true; $("#province").value = ""; $("#country").value = t("countryVal"); $("#pcHint").textContent = t("pcHint");
-  lastDone = {order, saved: res.saved};
-  renderDone();
-  showView("done");
-});
-let prefilled = false;
-function prefill(){
-  if (prefilled || !myOrders.length || val("buyerName") || val("street")) return;
-  const last = myOrders.slice().sort(byNewest)[0];
-  const b = last.buyer || {}, a = last.address || {};
-  $("#buyerName").value = b.name || ""; $("#buyerPhone").value = b.phone || ""; $("#buyerEmail").value = b.email || "";
-  if (!last.recipient || last.recipient.sameAsBuyer !== false) {
-    $("#street").value = a.street || ""; $("#extra").value = a.extra || ""; $("#city").value = a.city || ""; $("#postcode").value = a.postcode || "";
-    onPostcode();
-  }
-  prefilled = true;
 }
 
-/* ================= order sheet ================= */
-const statusOf = id => STATUS.includes(statuses[id]) ? statuses[id] : "new";
-const pill = st => `<span class="pill st-${st}">${t("st_"+st)}</span>`;
-function addrHTML(a){
-  return `${esc(a.street)}${a.extra ? `, ${esc(a.extra)}` : ""}<br>${esc(a.postcode)} ${esc(a.city)}<br>${a.province ? esc(a.province) + ", " : ""}${t("spain")}`;
-}
-function sheetHTML(o){
-  const b = o.buyer || {}, r = o.recipient || {}, a = o.address || {};
-  const items = Array.isArray(o.items) ? o.items : [];
-  const st = statusOf(o.id), del = Number(o.delivery) || 0;
+function emailHTML(o) {
+  const a = o.address, r = o.recipient, b = o.buyer;
+  const rows = o.items.map(i => `
+    <tr>
+      <td style="padding:10px 8px 10px 0;border-bottom:1px solid #e3e5e0">${i.qty}× ${esc(i.name)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e3e5e0">${esc(i.colorName)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e3e5e0">${esc(i.size)}</td>
+      <td style="padding:10px 0 10px 8px;border-bottom:1px solid #e3e5e0;text-align:right;white-space:nowrap">${money(i.price * i.qty)}</td>
+    </tr>`).join("");
   const tel = r.sameAsBuyer ? b.phone : r.phone;
-  return `<article class="sheet">
-    <header class="sheet-top">
-      <div><div class="wordmark">Obrador Túria</div><p>${t("addrHtml")}</p></div>
-      <div class="sheet-meta"><p class="sheet-kind">${t("sheetKind")}</p>
-        <dl><dt>${t("orderNo")}</dt><dd class="mono">${esc(o.id)}</dd><dt>${t("date")}</dt><dd class="mono">${fmtDate(o.createdAt)}</dd><dt>${t("status")}</dt><dd>${pill(st)}</dd></dl>
-      </div>
-    </header>
-    <div class="sheet-parties">
-      <section class="party"><h4>${t("orderedBy")}</h4><p class="who">${esc(b.name)}</p><p>${esc(b.phone)}${b.email ? `<br>${esc(b.email)}` : ""}</p></section>
-      <section class="party deliver"><h4>${t("deliverTo")}</h4><p class="who">${esc(r.name || b.name)}</p><p>${addrHTML(a)}</p>${tel ? `<p>${t("tel")} ${esc(tel)}</p>` : ""}</section>
+  const label = t => `<div style="font:600 11px/1.3 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#667080;margin-bottom:6px">${t}</div>`;
+  return `<!doctype html><html><body style="margin:0;background:#f3f4f1;padding:24px 12px;font:15px/1.5 Arial,Helvetica,sans-serif;color:#131920">
+  <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d8dcd5;border-radius:4px;padding:28px">
+    <div style="font:700 18px/1.2 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase">Obrador Túria</div>
+    <div style="color:#667080;font-size:13px;margin-top:4px">New order from the website</div>
+    <div style="margin:18px 0 22px;padding-bottom:16px;border-bottom:2px solid #131920;font-size:14px">
+      <strong>Order ${esc(o.id)}</strong> · ${esc(madridTime.format(new Date(o.createdAt)))} (Madrid time)
     </div>
-    ${o.notes ? `<div class="sheet-notes"><span>${t("notesLabel")}</span>${esc(o.notes)}</div>` : ""}
-    <div class="table-scroll"><table class="sheet-items">
-      <thead><tr><th>${t("thItem")}</th><th>${t("thColour")}</th><th>${t("thSize")}</th><th class="num">${t("thQty")}</th><th class="num">${t("thAmount")}</th></tr></thead>
-      <tbody>${items.map(i => `<tr><td>${esc(productName(i.id, i.name))}</td><td>${esc(colorName(i.color, i.colorName))}</td><td>${esc(sizeLabel(i.size))}</td><td class="num">${Number(i.qty)||0}</td><td class="num">${money((Number(i.price)||0)*(Number(i.qty)||0))}</td></tr>`).join("")}</tbody>
+    <div style="border:2px solid #131920;border-radius:4px;padding:14px 16px;margin-bottom:14px">
+      ${label("Deliver to")}
+      <div style="font-size:17px;font-weight:700">${esc(r.name)}</div>
+      <div>${esc(a.street)}${a.extra ? ", " + esc(a.extra) : ""}<br>${esc(a.postcode)} ${esc(a.city)}<br>${esc(a.province)}, Spain</div>
+      ${tel ? `<div style="margin-top:6px">Tel. ${esc(tel)}</div>` : ""}
+    </div>
+    <div style="border:1px solid #d8dcd5;border-radius:4px;padding:14px 16px;margin-bottom:14px">
+      ${label("Ordered by")}
+      <div style="font-weight:700">${esc(b.name)}</div>
+      <div>${esc(b.phone)}${b.email ? `<br>${esc(b.email)}` : ""}</div>
+    </div>
+    ${o.notes ? `<div style="background:#eef0ec;border-radius:4px;padding:12px 16px;margin-bottom:14px">${label("Delivery notes")}${esc(o.notes)}</div>` : ""}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px">
+      <thead><tr>
+        <th style="text-align:left;padding:0 8px 8px 0;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Item</th>
+        <th style="text-align:left;padding:0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Colour</th>
+        <th style="text-align:left;padding:0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Size</th>
+        <th style="text-align:right;padding:0 0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
       <tfoot>
-        <tr><td colspan="4">${t("subtotal")}</td><td class="num">${money(o.subtotal)}</td></tr>
-        <tr><td colspan="4">${t("delivery")}</td><td class="num">${del === 0 ? t("free") : money(del)}</td></tr>
-        <tr class="total"><td colspan="4">${t("total")}</td><td class="num">${money(o.total)}</td></tr>
+        <tr><td colspan="3" style="text-align:right;padding:10px 8px 4px 0;color:#3e4752">Subtotal</td><td style="text-align:right;padding:10px 0 4px">${money(o.subtotal)}</td></tr>
+        <tr><td colspan="3" style="text-align:right;padding:4px 8px 4px 0;color:#3e4752">Delivery</td><td style="text-align:right;padding:4px 0">${o.delivery === 0 ? "Free" : money(o.delivery)}</td></tr>
+        <tr><td colspan="3" style="text-align:right;padding:10px 8px 0 0;font-weight:700;border-top:1px solid #bfc5bc">Total to collect in person</td><td style="text-align:right;padding:10px 0 0;font-weight:700;border-top:1px solid #bfc5bc">${money(o.total)}</td></tr>
       </tfoot>
-    </table></div>
-    <div class="sheet-pay"><h4>${t("sheetPayTitle")}</h4><p>${t("sheetPay")}</p></div>
-    <footer class="sheet-sign"><div><span></span>${t("signName")}</div><div><span></span>${t("signDate")}</div><div><span></span>${t("signSig")}</div></footer>
-  </article>`;
-}
-function renderDone(){
-  if (!lastDone) return;
-  const {order, saved} = lastDone;
-  const first = (order.buyer.name || "").split(/\s+/)[0];
-  $("#doneTitle").textContent = t(saved ? "doneTitle" : "doneTitleLocal", {name:first});
-  $("#doneLede").textContent = order.recipient.sameAsBuyer
-    ? t("doneLedeMe", {city:order.address.city, total:money(order.total)})
-    : t("doneLedeOther", {to:order.recipient.name, city:order.address.city, total:money(order.total)});
-  const w = $("#doneWarn");
-  w.hidden = saved;
-  if (!saved) w.innerHTML = t("doneWarn");
-  $("#doneMine").hidden = !(saved && db);
-  $("#doneSheet").innerHTML = sheetHTML(order);
+    </table>
+    <div style="margin-top:20px;padding:12px 16px;border:1px dashed #bfc5bc;border-radius:4px;font-size:14px"><strong>Pay in person</strong> — cash, card or Bizum. Nothing was paid online.</div>
+    <div style="margin-top:14px;color:#667080;font-size:12px">Customer used the ${o.lang === "es" ? "Spanish" : "English"} version of the site.${b.email ? " Reply to this email to answer the customer." : ""}</div>
+  </div></body></html>`;
 }
 
-/* ================= lists ================= */
-function itemsHTML(o){
-  const items = Array.isArray(o.items) ? o.items : [];
-  return items.map(i => `${Number(i.qty)||0}× ${esc(productName(i.id, i.name))} <span class="muted">— ${esc(colorName(i.color, i.colorName))}, ${esc(sizeLabel(i.size))}</span>`).join("<br>");
+function emailText(o) {
+  const a = o.address, r = o.recipient, b = o.buyer;
+  const tel = r.sameAsBuyer ? b.phone : r.phone;
+  return [
+    `NEW ORDER ${o.id} — ${madridTime.format(new Date(o.createdAt))} (Madrid time)`,
+    "",
+    "DELIVER TO",
+    r.name,
+    `${a.street}${a.extra ? ", " + a.extra : ""}`,
+    `${a.postcode} ${a.city}`,
+    `${a.province}, Spain`,
+    tel ? `Tel. ${tel}` : "",
+    "",
+    "ORDERED BY",
+    b.name, b.phone, b.email || "",
+    o.notes ? `\nDELIVERY NOTES\n${o.notes}` : "",
+    "",
+    "ITEMS",
+    ...o.items.map(i => `${i.qty}x ${i.name} — ${i.colorName}, ${i.size} — ${money(i.price * i.qty)}`),
+    "",
+    `Subtotal: ${money(o.subtotal)}`,
+    `Delivery: ${o.delivery === 0 ? "Free" : money(o.delivery)}`,
+    `TOTAL TO COLLECT IN PERSON: ${money(o.total)}`,
+    "",
+    "Pay in person — cash, card or Bizum.",
+  ].filter(l => l !== null).join("\n");
 }
-function rowHTML(o, admin){
-  const b = o.buyer || {}, r = o.recipient || {}, a = o.address || {}, st = statusOf(o.id), id = esc(o.id);
-  const act = admin
-    ? `<div class="o-act"><label class="visually-hidden" for="st-${id}">${t("statusFor",{id})}</label><select id="st-${id}" data-status-for="${id}">${STATUS.map(k => `<option value="${k}"${k===st ? " selected" : ""}>${t("st_"+k)}</option>`).join("")}</select><button type="button" class="btn line" data-sheet="${id}">${t("openSheet")}</button></div>`
-    : `<div class="o-act">${pill(st)}<button type="button" class="btn line" data-sheet="${id}">${t("sheetBtn")}</button></div>`;
-  return `<article class="o-row${admin ? "" : " mine"}">
-    <div class="o-id"><span class="mono">${id}</span><span class="d">${fmtDate(o.createdAt)}</span>${admin ? pill(st) : ""}</div>
-    <div class="o-to"><span class="lab">${t("lblDeliverTo")}</span><strong>${esc(r.name || b.name)}</strong><p>${esc(a.street)}${a.extra ? `, ${esc(a.extra)}` : ""} · ${esc(a.postcode)} ${esc(a.city)}</p>${admin ? `<p class="by">${t("orderedByLine",{name:esc(b.name), phone:esc(b.phone)})}</p>` : ""}</div>
-    <div class="o-items"><span class="lab">${t("lblItems")}</span><p>${itemsHTML(o)}</p></div>
-    <div class="o-pay"><span class="lab">${t(admin ? "lblToCollect" : "lblToPay")}</span><strong>${money(o.total)}</strong><span>${t("inPerson")}</span></div>
-    ${act}
-  </article>`;
-}
-function renderMine(){
-  const el = $("#mineList"), list = myOrders.slice().sort(byNewest);
-  el.innerHTML = list.length
-    ? list.map(o => rowHTML(o, false)).join("")
-    : `<div class="list-empty"><strong>${t("noOrders")}</strong><span>${t("noOrdersMine")}</span><button type="button" class="btn line" data-go="shop" data-anchor="collection">${t("browse")}</button></div>`;
-}
-function renderAdmin(){
-  if (!canAdmin) return;
-  const counts = {}; STATUS.forEach(k => counts[k] = 0);
-  allOrders.forEach(o => counts[statusOf(o.id)]++);
-  const open = allOrders.filter(o => !CLOSED.includes(statusOf(o.id)));
-  const due = open.reduce((s,o) => s + (Number(o.total)||0), 0);
-  $("#collect").innerHTML = `<strong>${money(due)}</strong><span>${open.length === 1 ? t("collect1") : t("collectN",{n:open.length})}</span>`;
-  const tabs = [["open", t("tab_open"), open.length], ["all", t("tab_all"), allOrders.length], ...STATUS.map(k => [k, t("st_"+k), counts[k]])];
-  $("#adminTabs").innerHTML = tabs.map(([k,l,c]) => `<button type="button" class="chip" data-af="${k}" aria-pressed="${k===adminFilter}">${l}<span class="c">${c}</span></button>`).join("");
-  const q = ($("#adminSearch").value || "").trim().toLowerCase();
-  let list = allOrders.filter(o => {
-    const st = statusOf(o.id);
-    return adminFilter === "open" ? !CLOSED.includes(st) : adminFilter === "all" ? true : st === adminFilter;
+
+async function sendOrderEmail(o) {
+  const res = await fetch(RESEND_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": o.id },
+    body: JSON.stringify({
+      from: FROM_EMAIL,
+      to: [ORDER_EMAIL],
+      subject: `New order ${o.id} · ${o.recipient.name} · ${money(o.total)}`,
+      html: emailHTML(o),
+      text: emailText(o),
+      ...(o.buyer.email ? { reply_to: o.buyer.email } : {}),
+    }),
   });
-  if (q) list = list.filter(o => JSON.stringify([o.id, o.buyer, o.recipient, o.address]).toLowerCase().includes(q));
-  const el = $("#adminList");
-  if (!allOrders.length) el.innerHTML = `<div class="list-empty"><strong>${t("noOrders")}</strong><span>${t("noOrdersAdmin")}</span></div>`;
-  else if (!list.length) el.innerHTML = `<div class="list-empty"><strong>${t("noMatch")}</strong><span>${t("noMatchS")}</span></div>`;
-  else el.innerHTML = list.map(o => rowHTML(o, true)).join("");
-}
-$("#adminTabs").addEventListener("click", e => { const b = e.target.closest("[data-af]"); if (!b) return; adminFilter = b.dataset.af; renderAdmin(); });
-$("#adminSearch").addEventListener("input", renderAdmin);
-$("#adminList").addEventListener("change", async e => {
-  const s = e.target.closest("[data-status-for]"); if (!s || !db) return;
-  const id = s.dataset.statusFor, state = s.value, prev = statusOf(id);
-  s.disabled = true;
-  try {
-    await db.doc("status/" + id).set({state, at: new Date().toISOString()});
-    statuses = Object.assign({}, statuses, {[id]: state});
-    toast(t("toastStatus", {id, status: t("st_"+state).toLowerCase()}));
-  } catch(err) {
-    s.value = prev; toast(t("toastFail"));
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Resend ${res.status}: ${detail.slice(0, 300)}`);
   }
-  s.disabled = false;
-  renderAdmin(); updateNav();
-});
-function updateNav(){
-  $("#navMine").hidden = !myOrders.length;
-  $("#navAdmin").hidden = !canAdmin;
-  const n = allOrders.filter(o => statusOf(o.id) === "new").length;
-  $("#adminBadge").textContent = n; $("#adminBadge").hidden = !n;
-}
-function refreshLists(){
-  updateNav();
-  if (current === "mine") renderMine();
-  if (current === "admin") renderAdmin();
-  if (openSheetId && !$("#sheetModal").hidden) renderModal();
 }
 
-/* ================= modal + toast ================= */
-let modalReturn = null;
-function findOrder(id){ return allOrders.find(x => x.id === id) || myOrders.find(x => x.id === id); }
-function renderModal(){ const o = findOrder(openSheetId); if (o) $("#modalSheet").innerHTML = sheetHTML(o); }
-document.addEventListener("click", e => {
-  const b = e.target.closest("[data-sheet]"); if (!b) return;
-  if (!findOrder(b.dataset.sheet)) return;
-  openSheetId = b.dataset.sheet; renderModal();
-  $("#sheetModal").hidden = false; document.body.style.overflow = "hidden";
-  modalReturn = b; $("#sheetModal .modal-x").focus();
-});
-function closeModal(){
-  $("#sheetModal").hidden = true; document.body.style.overflow = ""; openSheetId = null;
-  if (modalReturn && document.contains(modalReturn)) modalReturn.focus({preventScroll:true});
-}
-$("#sheetModal").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeModal(); });
-document.addEventListener("keydown", e => {
-  if (e.key !== "Escape") return;
-  if (!$("#sheetModal").hidden) closeModal();
-  else if ($("#bag").classList.contains("open")) closeBag();
-});
-let toastT;
-function toast(msg){
-  const el = $("#toast"); el.textContent = msg; el.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2800);
-}
-
-/* ================= language ================= */
-function applyLang(l){
-  lang = l;
-  try { localStorage.setItem(LANG_KEY, l); } catch(e) {}
-  document.documentElement.lang = l;
-  $$("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
-  $$("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
-  $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
-  $$("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
-  $$(".lang [data-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === l)));
-  $("#country").value = t("countryVal");
-  $$(".err").forEach(e => { if (!e.hidden && e.dataset.key) e.textContent = t(e.dataset.key, JSON.parse(e.dataset.vars || "{}")); });
-  if (!$("#formError").hidden && formErrCode) showFormError(formErrCode);
-  const pcEl = $("#postcode");
-  if (pcEl.value) { const i = pcEl.value.length===5 ? postcodeInfo(pcEl.value) : null; $("#pcHint").textContent = i && i.ok ? (i.fee===0 ? t("pcFree") : t("pcPaid")) : t("pcHint"); }
-  else $("#pcHint").textContent = t("pcHint");
-  const grid = $("#grid"), animated = grid.children.length > 0;
-  renderFilters(); renderGrid(false);
-  if (animated) $$("#grid .product").forEach(el => el.classList.remove("reveal"));
-  renderBag(); renderSummary();
-  if (current === "done") renderDone();
-  if (current === "mine") renderMine();
-  if (current === "admin") renderAdmin();
-  if (openSheetId && !$("#sheetModal").hidden) renderModal();
-}
-$(".lang").addEventListener("click", e => {
-  const b = e.target.closest("[data-lang]"); if (!b || b.dataset.lang === lang) return;
-  applyLang(b.dataset.lang);
-});
-
-/* ================= shop's order list (db) ================= */
-async function initCaps(){
-  const c = window.claude;
-  if (!c || typeof c.use !== "function") return;
-  try {
-    const [d, u] = await Promise.all([c.use("db"), c.use("user")]);
-    db = d; user = u;
-    if (user) { uid = await user.id(); canAdmin = await user.canEdit(); }
-  } catch(e) { return; }
-  if (db) {
-    try {
-      db.collection("status").onSnapshot(s => {
-        const m = {};
-        s.docs.forEach(d => { const v = d.data(); if (v && STATUS.includes(v.state)) m[d.id] = v.state; });
-        statuses = m; refreshLists();
-      }, () => {});
-    } catch(e) {}
-    if (uid) {
-      try {
-        db.doc("orders/" + uid).onSnapshot(s => {
-          const v = s.exists ? s.data() : null;
-          myOrders = v && Array.isArray(v.orders) ? v.orders.filter(o => o && typeof o === "object" && typeof o.id === "string") : [];
-          refreshLists();
-        }, () => {});
-      } catch(e) {}
-    }
-    if (canAdmin) {
-      try {
-        db.collection("orders").onSnapshot(s => {
-          const all = [];
-          s.docs.forEach(d => { const v = d.data(); if (v && Array.isArray(v.orders)) v.orders.forEach(o => { if (o && typeof o === "object" && typeof o.id === "string") all.push(o); }); });
-          allOrders = all.sort(byNewest); refreshLists();
-        }, () => {});
-      } catch(e) {}
-    }
+app.post("/api/orders", async (req, res) => {
+  if (rateLimited(req.ip)) return res.status(429).json({ ok: false, code: "rate_limited" });
+  const order = cleanOrder(req.body);
+  if (!order) return res.status(400).json({ ok: false, code: "invalid_order" });
+  if (!RESEND_API_KEY || !ORDER_EMAIL) {
+    console.error("Order received but email isn't set up: add RESEND_API_KEY and ORDER_EMAIL in Render → Environment.", order.id);
+    return res.status(503).json({ ok: false, code: "email_not_configured" });
   }
-  updateNav();
-}
+  try {
+    await sendOrderEmail(order);
+    console.log(`Order ${order.id} emailed to shop (${order.items.length} lines, ${money(order.total)})`);
+    res.json({ ok: true, id: order.id, createdAt: order.createdAt });
+  } catch (err) {
+    console.error(`Order ${order.id} could not be emailed:`, err.message);
+    res.status(502).json({ ok: false, code: "email_failed" });
+  }
+});
 
-/* ================= start ================= */
-applyLang(lang);
-reveal([
-  $(".how-intro"), ...$$(".steps li"),
-  $(".collection .section-head"), ...$$("#grid .product"),
-  $(".visit-intro"), ...$$(".visit-side > div"),
-  $(".site-foot .wrap")
-]);
-initCaps();
-})();
-</script>
+app.use((req, res) => (INDEX ? res.status(404).sendFile(INDEX) : res.status(404).send("Not found")));
 
-</body>
-</html>
+app.listen(PORT, () => {
+  console.log(`Obrador Túria running on port ${PORT}`);
+  console.log(INDEX ? `Shop page: ${path.relative(__dirname, INDEX)}` : "WARNING: index.html not found — upload it to the repository.");
+  if (!RESEND_API_KEY || !ORDER_EMAIL) console.warn("Email not set up yet — add RESEND_API_KEY and ORDER_EMAIL.");
+});
