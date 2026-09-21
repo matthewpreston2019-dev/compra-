@@ -1,0 +1,225 @@
+// Obrador Túria — shop website + order emails
+// Serves the shop page and emails every completed order form to the shop owner.
+// Email goes through Resend's HTTPS API (Render's free plan blocks normal email/SMTP ports).
+
+const path = require("path");
+const express = require("express");
+
+const PORT = process.env.PORT || 3000;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const ORDER_EMAIL = process.env.ORDER_EMAIL || "";
+const FROM_EMAIL = process.env.FROM_EMAIL || "Obrador Túria <onboarding@resend.dev>";
+const RESEND_URL = process.env.RESEND_API_URL || "https://api.resend.com/emails";
+
+// Prices live here too, so totals in the email can't be changed from the browser.
+const PRODUCTS = {
+  "cabanyal-hoodie":  { name: "Cabanyal Heavyweight Hoodie", price: 69 },
+  "albufera-zip":     { name: "Albufera Zip Hoodie",         price: 75 },
+  "carme-trousers":   { name: "Carme Pleated Trousers",      price: 82 },
+  "malvarrosa-cargo": { name: "Malvarrosa Cargo Trousers",   price: 74 },
+  "russafa-crew":     { name: "Russafa Crewneck",            price: 58 },
+  "azahar-tee":       { name: "Azahar Boxy Tee",             price: 32 },
+  "mercat-overshirt": { name: "Mercat Twill Overshirt",      price: 89 },
+  "micalet-beanie":   { name: "Micalet Rib Beanie",          price: 24 },
+};
+const COLOURS = {
+  limestone: "Limestone", manises: "Manises Blue", ink: "Ink", olive: "Olive", heather: "Heather Grey",
+  taronja: "Taronja", chalk: "Chalk", stone: "Stone", sand: "Sand",
+};
+const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "28", "30", "32", "34", "36", "One size"];
+const PROVINCES = {"01":"Araba/Álava","02":"Albacete","03":"Alacant/Alicante","04":"Almería","05":"Ávila","06":"Badajoz","08":"Barcelona","09":"Burgos","10":"Cáceres","11":"Cádiz","12":"Castelló/Castellón","13":"Ciudad Real","14":"Córdoba","15":"A Coruña","16":"Cuenca","17":"Girona","18":"Granada","19":"Guadalajara","20":"Gipuzkoa","21":"Huelva","22":"Huesca","23":"Jaén","24":"León","25":"Lleida","26":"La Rioja","27":"Lugo","28":"Madrid","29":"Málaga","30":"Murcia","31":"Navarra","32":"Ourense","33":"Asturias","34":"Palencia","36":"Pontevedra","37":"Salamanca","39":"Cantabria","40":"Segovia","41":"Sevilla","42":"Soria","43":"Tarragona","44":"Teruel","45":"Toledo","46":"València/Valencia","47":"Valladolid","48":"Bizkaia","49":"Zamora","50":"Zaragoza"};
+const DELIVERY_FEE = 5.9;
+
+const app = express();
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(express.json({ limit: "64kb" }));
+app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
+
+app.get("/healthz", (req, res) => res.json({ ok: true, email: Boolean(RESEND_API_KEY && ORDER_EMAIL) }));
+
+// ---- simple per-connection limit: 8 orders per 10 minutes ----
+const hits = new Map();
+function rateLimited(ip) {
+  const now = Date.now(), windowMs = 10 * 60 * 1000;
+  const list = (hits.get(ip) || []).filter(t => now - t < windowMs);
+  list.push(now);
+  hits.set(ip, list);
+  if (hits.size > 5000) hits.clear();
+  return list.length > 8;
+}
+
+const str = (v, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const eur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
+const money = n => eur.format(n);
+const madridTime = new Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+function makeId() {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let r = "";
+  for (let i = 0; i < 4; i++) r += A[Math.floor(Math.random() * A.length)];
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `OT-${p(d.getMonth() + 1)}${p(d.getDate())}-${r}`;
+}
+
+// Check the order and rebuild it from trusted values.
+function cleanOrder(body) {
+  if (!body || typeof body !== "object") return null;
+  const b = body.buyer || {}, r = body.recipient || {}, a = body.address || {};
+  const buyer = { name: str(b.name, 120), phone: str(b.phone, 40), email: str(b.email, 160) };
+  if (buyer.name.length < 2 || buyer.phone.replace(/\D/g, "").length < 9) return null;
+  if (buyer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyer.email)) buyer.email = "";
+
+  const sameAsBuyer = r.sameAsBuyer !== false;
+  const recipient = sameAsBuyer
+    ? { name: buyer.name, phone: buyer.phone, sameAsBuyer: true }
+    : { name: str(r.name, 120), phone: str(r.phone, 40), sameAsBuyer: false };
+  if (recipient.name.length < 2) return null;
+
+  const postcode = str(a.postcode, 5);
+  if (!/^\d{5}$/.test(postcode) || !PROVINCES[postcode.slice(0, 2)]) return null;
+  const address = {
+    street: str(a.street, 200), extra: str(a.extra, 120), postcode,
+    city: str(a.city, 120), province: PROVINCES[postcode.slice(0, 2)], country: "Spain",
+  };
+  if (address.street.length < 3 || address.city.length < 2) return null;
+
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 30) return null;
+  const items = [];
+  for (const it of body.items) {
+    const p = it && PRODUCTS[it.id];
+    const qty = Math.floor(Number(it && it.qty));
+    if (!p || !COLOURS[it.color] || !SIZES.includes(it.size) || !(qty >= 1 && qty <= 10)) return null;
+    items.push({ id: it.id, name: p.name, color: it.color, colorName: COLOURS[it.color], size: it.size, qty, price: p.price });
+  }
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const delivery = postcode.startsWith("46") ? 0 : DELIVERY_FEE;
+  const id = /^OT-\d{4}-[A-Z0-9]{4}$/.test(body.id || "") ? body.id : makeId();
+  return {
+    id, createdAt: new Date().toISOString(), lang: body.lang === "es" ? "es" : "en",
+    buyer, recipient, address, notes: str(body.notes, 1000), payment: "in-person",
+    items, subtotal, delivery, total: Math.round((subtotal + delivery) * 100) / 100,
+  };
+}
+
+function emailHTML(o) {
+  const a = o.address, r = o.recipient, b = o.buyer;
+  const rows = o.items.map(i => `
+    <tr>
+      <td style="padding:10px 8px 10px 0;border-bottom:1px solid #e3e5e0">${i.qty}× ${esc(i.name)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e3e5e0">${esc(i.colorName)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e3e5e0">${esc(i.size)}</td>
+      <td style="padding:10px 0 10px 8px;border-bottom:1px solid #e3e5e0;text-align:right;white-space:nowrap">${money(i.price * i.qty)}</td>
+    </tr>`).join("");
+  const tel = r.sameAsBuyer ? b.phone : r.phone;
+  const label = t => `<div style="font:600 11px/1.3 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#667080;margin-bottom:6px">${t}</div>`;
+  return `<!doctype html><html><body style="margin:0;background:#f3f4f1;padding:24px 12px;font:15px/1.5 Arial,Helvetica,sans-serif;color:#131920">
+  <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d8dcd5;border-radius:4px;padding:28px">
+    <div style="font:700 18px/1.2 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase">Obrador Túria</div>
+    <div style="color:#667080;font-size:13px;margin-top:4px">New order from the website</div>
+    <div style="margin:18px 0 22px;padding-bottom:16px;border-bottom:2px solid #131920;font-size:14px">
+      <strong>Order ${esc(o.id)}</strong> · ${esc(madridTime.format(new Date(o.createdAt)))} (Madrid time)
+    </div>
+    <div style="border:2px solid #131920;border-radius:4px;padding:14px 16px;margin-bottom:14px">
+      ${label("Deliver to")}
+      <div style="font-size:17px;font-weight:700">${esc(r.name)}</div>
+      <div>${esc(a.street)}${a.extra ? ", " + esc(a.extra) : ""}<br>${esc(a.postcode)} ${esc(a.city)}<br>${esc(a.province)}, Spain</div>
+      ${tel ? `<div style="margin-top:6px">Tel. ${esc(tel)}</div>` : ""}
+    </div>
+    <div style="border:1px solid #d8dcd5;border-radius:4px;padding:14px 16px;margin-bottom:14px">
+      ${label("Ordered by")}
+      <div style="font-weight:700">${esc(b.name)}</div>
+      <div>${esc(b.phone)}${b.email ? `<br>${esc(b.email)}` : ""}</div>
+    </div>
+    ${o.notes ? `<div style="background:#eef0ec;border-radius:4px;padding:12px 16px;margin-bottom:14px">${label("Delivery notes")}${esc(o.notes)}</div>` : ""}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px">
+      <thead><tr>
+        <th style="text-align:left;padding:0 8px 8px 0;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Item</th>
+        <th style="text-align:left;padding:0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Colour</th>
+        <th style="text-align:left;padding:0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Size</th>
+        <th style="text-align:right;padding:0 0 8px 8px;border-bottom:1px solid #bfc5bc;font-size:11px;color:#667080;text-transform:uppercase;letter-spacing:.06em">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr><td colspan="3" style="text-align:right;padding:10px 8px 4px 0;color:#3e4752">Subtotal</td><td style="text-align:right;padding:10px 0 4px">${money(o.subtotal)}</td></tr>
+        <tr><td colspan="3" style="text-align:right;padding:4px 8px 4px 0;color:#3e4752">Delivery</td><td style="text-align:right;padding:4px 0">${o.delivery === 0 ? "Free" : money(o.delivery)}</td></tr>
+        <tr><td colspan="3" style="text-align:right;padding:10px 8px 0 0;font-weight:700;border-top:1px solid #bfc5bc">Total to collect in person</td><td style="text-align:right;padding:10px 0 0;font-weight:700;border-top:1px solid #bfc5bc">${money(o.total)}</td></tr>
+      </tfoot>
+    </table>
+    <div style="margin-top:20px;padding:12px 16px;border:1px dashed #bfc5bc;border-radius:4px;font-size:14px"><strong>Pay in person</strong> — cash, card or Bizum. Nothing was paid online.</div>
+    <div style="margin-top:14px;color:#667080;font-size:12px">Customer used the ${o.lang === "es" ? "Spanish" : "English"} version of the site.${b.email ? " Reply to this email to answer the customer." : ""}</div>
+  </div></body></html>`;
+}
+
+function emailText(o) {
+  const a = o.address, r = o.recipient, b = o.buyer;
+  const tel = r.sameAsBuyer ? b.phone : r.phone;
+  return [
+    `NEW ORDER ${o.id} — ${madridTime.format(new Date(o.createdAt))} (Madrid time)`,
+    "",
+    "DELIVER TO",
+    r.name,
+    `${a.street}${a.extra ? ", " + a.extra : ""}`,
+    `${a.postcode} ${a.city}`,
+    `${a.province}, Spain`,
+    tel ? `Tel. ${tel}` : "",
+    "",
+    "ORDERED BY",
+    b.name, b.phone, b.email || "",
+    o.notes ? `\nDELIVERY NOTES\n${o.notes}` : "",
+    "",
+    "ITEMS",
+    ...o.items.map(i => `${i.qty}x ${i.name} — ${i.colorName}, ${i.size} — ${money(i.price * i.qty)}`),
+    "",
+    `Subtotal: ${money(o.subtotal)}`,
+    `Delivery: ${o.delivery === 0 ? "Free" : money(o.delivery)}`,
+    `TOTAL TO COLLECT IN PERSON: ${money(o.total)}`,
+    "",
+    "Pay in person — cash, card or Bizum.",
+  ].filter(l => l !== null).join("\n");
+}
+
+async function sendOrderEmail(o) {
+  const res = await fetch(RESEND_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": o.id },
+    body: JSON.stringify({
+      from: FROM_EMAIL,
+      to: [ORDER_EMAIL],
+      subject: `New order ${o.id} · ${o.recipient.name} · ${money(o.total)}`,
+      html: emailHTML(o),
+      text: emailText(o),
+      ...(o.buyer.email ? { reply_to: o.buyer.email } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Resend ${res.status}: ${detail.slice(0, 300)}`);
+  }
+}
+
+app.post("/api/orders", async (req, res) => {
+  if (rateLimited(req.ip)) return res.status(429).json({ ok: false, code: "rate_limited" });
+  const order = cleanOrder(req.body);
+  if (!order) return res.status(400).json({ ok: false, code: "invalid_order" });
+  if (!RESEND_API_KEY || !ORDER_EMAIL) {
+    console.error("Order received but email isn't set up: add RESEND_API_KEY and ORDER_EMAIL in Render → Environment.", order.id);
+    return res.status(503).json({ ok: false, code: "email_not_configured" });
+  }
+  try {
+    await sendOrderEmail(order);
+    console.log(`Order ${order.id} emailed to shop (${order.items.length} lines, ${money(order.total)})`);
+    res.json({ ok: true, id: order.id, createdAt: order.createdAt });
+  } catch (err) {
+    console.error(`Order ${order.id} could not be emailed:`, err.message);
+    res.status(502).json({ ok: false, code: "email_failed" });
+  }
+});
+
+app.use((req, res) => res.status(404).sendFile(path.join(__dirname, "public", "index.html")));
+
+app.listen(PORT, () => {
+  console.log(`Obrador Túria running on port ${PORT}`);
+  if (!RESEND_API_KEY || !ORDER_EMAIL) console.warn("Email not set up yet — add RESEND_API_KEY and ORDER_EMAIL.");
+});
